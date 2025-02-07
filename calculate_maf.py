@@ -8,7 +8,7 @@ def initialise():
     Parse command-line arguments.
     '''
     global _args
-    parser = argparse.ArgumentParser( description="Calculation of Minor allele frequency (MAF) as MAF = (1-(A+C+G+T))/(A+C+G+T)" )
+    parser = argparse.ArgumentParser( description="Calculation of minor allele frequency (MAF) as MAF = (1-(A+C+G+T))/(A+C+G+T)" )
     parser.add_argument( "-b", "--basefreqspath", required=True, help="A comma-separated file from shiver: BaseFreqWithHXB2." )
     parser.add_argument( "-o", "--outpath", required=True, help="Filename for saving calculated MAF." )
     _args = parser.parse_args()
