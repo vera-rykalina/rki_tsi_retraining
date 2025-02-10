@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 
+# Import libraries
 import argparse
 import pandas as pd
 
+
+# Global variables 
 _args = None
 
 def initialise():
