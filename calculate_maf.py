@@ -42,11 +42,16 @@ def calculate_maf(basefreqs, sample_id ):
     maf = maf.loc[:,["Position in B.FR.83.HXB2_LAI_IIIB_BRU.K03455", "MAF"]]
     # Rename HBX2 column -> pos and MAF column -> sample ID (variable)
     maf.rename({"Position in B.FR.83.HXB2_LAI_IIIB_BRU.K03455": "pos", "MAF": sample_id}, axis=1, inplace=True)
+    # Transpose maf so that rows are sample IDs and columns are positions, containing values of cumulative MAFs
+    maf = maf.T
+    # Reset index after transposition
+    maf = maf.reset_index()
+    #print(maf[maf.columns[:6]])
     return maf
 
 def save_maf(maf, outf):
     ''' Write output. '''
-    maf.to_csv(outf, sep=",", index=False, encoding="utf-8")
+    maf.to_csv(outf, sep=",", index=False, header=False, encoding="utf-8")
     print("Output saved as {}.".format(outf))
 
 def main():
