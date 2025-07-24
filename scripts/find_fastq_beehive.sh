@@ -8,9 +8,9 @@
 # Comment: Do not use more than 10 files per run (no space on the disk)
 
 
-RANGE="20005"
+RANGE="19960"
 # Get input data (tsi IDs)
-VAR1=$(cat /scratch/rykalinav/rki_tsi_retraining/data/beehive_${RANGE}.txt)
+VAR1=$(cat /scratch/rykalinav/rki_tsi_retraining/data/beehive_for_tsi_${RANGE}.txt)
 
 if [ -d "/mnt/projekte/rykalinav/FG18_HIV_Pipelines/HIV-phyloTSI/TSI_beehive_raw_${RANGE}" ]; then rm -Rf /mnt/projekte/rykalinav/FG18_HIV_Pipelines/HIV-phyloTSI/TSI_beehive_raw_${RANGE}; fi
 
