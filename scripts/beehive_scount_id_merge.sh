@@ -7,7 +7,7 @@
 # Created: 04.07.2025
 # Author: Vera Rykalina
 # Purpurse: Renaming BEEHIVE data so that a file name is combined: seq_id plus scount (RKI ID). 
-# Usage: ./find_fastq_beehive.sh 
+# Usage: srun --pty bash -i beehive_scount_id_merge.sh 
 
 
 # get ticket
@@ -17,9 +17,12 @@ hpc-ticket
 hpc-mount projekte
 
 # define a variable for a folder
-INIT="20005"
+INIT="19960"
 
 # create a folder
+if [ -d "$TMPDIR/mnt/projekte/rykalinav/FG18_HIV_Pipelines/HIV-phyloTSI//TSI_beehive_renamed_${INIT}" ]; 
+then rm -Rf $TMPDIR/mnt/projekte/rykalinav/FG18_HIV_Pipelines/HIV-phyloTSI//TSI_beehive_renamed_${INIT}; fi
+
 mkdir -p $TMPDIR/projekte/FG18_HIV_Pipelines/HIV-phyloTSI/TSI_beehive_renamed_${INIT}
 
 # cd to HIV-phyloTSI
@@ -38,9 +41,11 @@ while IFS= read -r line; do
     newfile1=`echo $line | awk '{print $3}'`
     oldfile2=`echo $line | awk '{print $2}'`
     newfile2=`echo $line | awk '{print $4}'`
-    mv $oldfile1 $newfile1
-    mv $oldfile2 $newfile2
-
+    echo "Moving $oldfile1 to $newfile1"
+    echo "Moving $oldfile2 to $newfile2"
+    mv "$oldfile1" "$newfile1"
+    mv "$oldfile2" "$newfile2"
+  
 done < beehive_scount_${INIT}.txt
 
 
