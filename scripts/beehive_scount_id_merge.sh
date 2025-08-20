@@ -17,7 +17,7 @@ hpc-ticket
 hpc-mount projekte
 
 # define a variable for a folder
-INIT="19960"
+INIT="20004"
 
 # create a folder
 if [ -d "$TMPDIR/mnt/projekte/rykalinav/FG18_HIV_Pipelines/HIV-phyloTSI//TSI_beehive_renamed_${INIT}" ]; 
