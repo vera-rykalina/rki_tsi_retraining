@@ -40,7 +40,7 @@ process SELECT_SAMPLES {
 process COPY_SELECT_MAFS {
     label "select_mafs_patstats"
     publishDir "${params.outdir}/02_selected_mafs", mode: 'copy', overwrite: true
-    debug true
+    //debug true
 
     input:
       path id_list_txt
@@ -82,7 +82,7 @@ process CONCATINATE_MAFS {
 process COPY_SELECT_PATSTATS {
     label "select_mafs_patstats"
     publishDir "${params.outdir}/04_selected_patstats", mode: 'copy', overwrite: true
-    debug true
+    //debug true
 
     input:
       path id_list_txt
@@ -104,6 +104,28 @@ process COPY_SELECT_PATSTATS {
 }
 
 
+process REMOVE_PROP_GP {
+  conda "${projectDir}/envs/phylo_tsi.yml"
+  publishDir "${params.outdir}/05_cleaned_patstats", mode: "copy", overwrite: true
+  debug true
+
+  input:
+    path patstats_csv
+
+  output:
+    path "*.csv"
+
+  script:
+    // Extract ID from filename without extension
+    def id = patstats_csv.simpleName.split('_')[0]
+
+    """
+    remove_prop_gp_cols.py \
+      --input ${patstats_csv} \
+      --output ${id}_no_prop_patStats.csv
+    """
+}
+
 
 workflow {
   ch_dataset = Channel.fromPath(params.dataset, checkIfExists: true)
@@ -111,6 +133,7 @@ workflow {
   ch_mafs = COPY_SELECT_MAFS ( ch_samples.Txt, params.mafs_patstats_search_dir )
   ch_concat_maf = CONCATINATE_MAFS ( ch_mafs.collect() )
   ch_patstats = COPY_SELECT_PATSTATS ( ch_samples.Txt, params.mafs_patstats_search_dir )
+  che_patstats_no_prop = REMOVE_PROP_GP (ch_patstats.flatten() )
 
 }
 
