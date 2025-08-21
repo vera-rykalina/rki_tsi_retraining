@@ -61,8 +61,9 @@ filter_excel_data <- function(input_file, output_csv, output_txt, sheet = 1) {
   df_filtered <- df_selected |> 
     filter(multi_all_genes != "yes", 
            pol_gap != "yes", pol_cov != "uneven",
-           gag_gap != "yes", gag_cov != "uneven"
-    )
+           gag_gap != "yes", gag_cov != "uneven") |> 
+    arrange(scount)
+
   
   write.csv(df_filtered, output_csv, row.names = FALSE)
   writeLines(df_filtered$scount, con = output_txt)
