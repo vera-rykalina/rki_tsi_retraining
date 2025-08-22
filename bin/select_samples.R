@@ -37,18 +37,18 @@ if (is.na(sheet_arg)) sheet_arg <- args$sheet
 filter_excel_data <- function(input_file, output_csv, output_txt, sheet = 1) {
   df <- read_excel(input_file, sheet = sheet)
  
-  cols_to_select <- c("scount", "project",
-                      "known_tsi_months", "est_tsi_months",
-                      "sample_number", "first_or_followup",
-                      "viral_load", "viral_load_next", 
+  cols_to_select <- c("scount", "project", "known_tsi_days",
+                      "known_tsi_months", "est_tsi_months", 
+                      "known_tsi_years", "sample_number", 
+                      "first_or_followup","viral_load", 
                       "subtype_prrt", "subtype_kallisto",
                       "multiplicity", "multi_all_genes", 
                       "elisa_sum_bed", "biorad_avidity",
                       "protocol", "file_name",
                       "file_size_mb_r1", "file_size_mb_r2",
                       "reads_raw_mln", "reads_final_mln",  
-                      "pol_gap", "pol_cov", 
-                      "gag_gap", "gag_cov",
+                      "pol_gap", "pol_gap_info", "pol_cov", 
+                      "gag_gap", "gag_gap_info", "gag_cov",
                       "comment")
   
   df_selected <- df |>  select(all_of(cols_to_select))
@@ -63,13 +63,13 @@ filter_excel_data <- function(input_file, output_csv, output_txt, sheet = 1) {
            pol_gap != "yes", pol_cov != "uneven",
            gag_gap != "yes", gag_cov != "uneven") |> 
     arrange(scount)
-
   
   write.csv(df_filtered, output_csv, row.names = FALSE)
   writeLines(df_filtered$scount, con = output_txt)
 }
 
-# --- Call the function with parsed arguments ---
+
+# 4. Call the function with parsed arguments ------------------------------
 filter_excel_data(args$input, args$output_csv, args$output_txt, sheet_arg)
 
 
