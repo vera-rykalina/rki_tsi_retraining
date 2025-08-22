@@ -130,13 +130,33 @@ process REMOVE_PROP_GP {
 }
 
 
+process CONCATINATE_PATSTATS {
+  label "low"
+  publishDir "${params.outdir}/06_concatinated_patstats", mode: "copy", overwrite: true
+  debug true
+
+  input:
+    path patstats_csvs
+    
+  output:
+    path "*.csv"
+    
+  script:
+    """
+    awk 'FNR==1 && NR!=1 { next } { print }' ${patstats_csvs} > concatinated_patstats.csv
+    
+    """
+  }
+
+
 workflow {
-  ch_dataset = Channel.fromPath(params.dataset, checkIfExists: true)
-  ch_samples = SELECT_SAMPLES(ch_dataset, params.sheet)
+  ch_dataset = Channel.fromPath ( params.dataset, checkIfExists: true)
+  ch_samples = SELECT_SAMPLES ( ch_dataset, params.sheet)
   ch_mafs = COPY_SELECT_MAFS ( ch_samples.Txt, params.mafs_patstats_search_dir )
   ch_concat_maf = CONCATINATE_MAFS ( ch_mafs.collect() )
   ch_patstats = COPY_SELECT_PATSTATS ( ch_samples.Txt, params.mafs_patstats_search_dir )
-  che_patstats_no_prop = REMOVE_PROP_GP (ch_patstats.flatten() )
+  ch_patstats_no_prop_gp = REMOVE_PROP_GP ( ch_patstats.flatten() )
+  ch_concat_patstat = CONCATINATE_PATSTATS ( ch_patstats_no_prop_gp.collect())
 
 }
 
