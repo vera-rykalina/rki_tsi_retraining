@@ -1,0 +1,524 @@
+
+# 1. Libraries ------------------------------------------------------------
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(psych)
+library(ggpmisc)
+library(greekLetters)
+
+# 2. Export dataframe -----------------------------------------------------
+
+### Full-length ###
+hivtime_df <- read_excel("data/hiv_phylotsi_validation.xlsx",sheet = "HIVtime_v2")
+head(hivtime_df) 
+nrow(hivtime_df)
+
+### Pol ###
+hivtime_pol_df <- read_excel("data/hiv_phylotsi_validation.xlsx",sheet = "Fragments")
+head(hivtime_pol_df) 
+nrow(hivtime_pol_df)
+
+# 3. Filter dataframe -----------------------------------------------------
+
+hivtime_filtered <- hivtime_df |>
+    rename(known_tsi = duration_of_infection_months) |> 
+    rename(est_tsi = hivtime_v2_months) |> 
+    select(scount, known_tsi, est_tsi, protocol, subtype_prrt) |> 
+    filter(!scount %in% "14-00725") |> 
+    filter(!protocol %in% c(paste0("FL", seq(1:9)))) |>
+    mutate(tsi_diff = known_tsi - est_tsi) |> 
+    mutate(tsi_levels = ifelse(known_tsi <= 12, "0-12", 
+                               ifelse(known_tsi > 12 & known_tsi <= 24, "12-24", 
+                                      ifelse(known_tsi > 24 & known_tsi <= 36, "24-36", 
+                                             ifelse(known_tsi > 36 & known_tsi <= 48, "36-48",
+                                                    ifelse(known_tsi > 48 & known_tsi <= 60, "48-60", 
+                                                           ">60"))))))
+
+# 4. Create a boxplot -----------------------------------------------------
+
+# Sample size
+(tsi_groups <- hivtime_filtered |>
+     group_by(tsi_levels) |> 
+     summarise(n = n()))
+
+# Subtype groups
+(tsi_subtypes <- hivtime_filtered |> 
+        group_by(subtype_prrt) |> 
+        summarise(n = n()))
+
+subtype <- c("B", "non-B")
+samples <- c(214, 44)
+subtypes <- data.frame(Subtype = subtype, Count = samples) 
+
+# Join the data with the group sizes and modify tsi_levels
+(hivtime_filtered |> 
+    left_join(tsi_groups, by = "tsi_levels") |> 
+    mutate(tsi_levels_label = paste0(tsi_levels, "\n", "(n=", n,")")) |> 
+    ggplot(aes(x = factor(tsi_levels_label, 
+                          levels = c("0-12\n(n=73)", "12-24\n(n=40)",
+                                     "24-36\n(n=44)", "36-48\n(n=41)",
+                                     "48-60\n(n=29)", ">60\n(n=31)" )),
+               y = tsi_diff)) +
+    
+    # Horizontal line at y = 0
+    geom_hline(yintercept = 0, size = 0.6, color = "#3A5894") +
+    
+    # Error bars with colors corresponding to tsi_levels
+    stat_boxplot(lwd = 0.7, geom = 'errorbar', 
+                 aes(color = factor(tsi_levels_label))) +
+    
+    # Boxplots with colors corresponding to tsi_levels
+    geom_boxplot(lwd = 0.7,
+                 aes(color = factor(tsi_levels_label)), 
+                 outlier.shape = 21,
+                 outlier.size = 0.85,
+                 outlier.stroke = 0.85) +
+    
+    # Custom colors for each tsi_levels
+    scale_color_manual(values = c("#0D4F8B", "#33A1C9", "#33A1DE", 
+                                  "#FFCC11", "#236B8E", "#0099CC"),
+                       name = "Group size", 
+                       labels = c("0-12 (n=73)", "12-24 (n=40)", "24-36 (n=44)", 
+                                  "36-48 (n=41)", "48-60 (n=29)", ">60 (n=31)")) +
+    
+    # Jitter for individual data points
+    geom_jitter(size = 0.5, alpha = 0.8, color = "grey15") +
+    
+    # Labels and axis formatting
+    labs(x = 'Months', y = 'Known TSI - Estimated TSI') +
+    scale_y_continuous(limits = c(-80, 80), breaks = seq(-80, 80, 20)) +
+    
+    # Add a text box
+    geom_label(label = "Subtype: B (n=214), non-B (n=44)", 
+               x = 1.5, y = 70,
+               label.padding = unit(0.55, "lines"),
+               label.size = 0.35,
+               color = "grey10",
+               fill = "white") +
+    # Theme settings
+    theme_minimal() +
+    theme(text = element_text(size = 16, color = "grey10"), 
+          panel.background = element_rect(fill = "white", colour = "grey80"), 
+          axis.title = element_text(size = 16, color = "grey10"), 
+          legend.text = element_text(size = 16),
+          legend.position = "none"))
+
+
+# Annotation of table
+# annotate(geom = "table", label = list(subtypes), 
+#         x = 0.7, y = 80, color = "grey10")
+
+# Save the plot
+ggsave("images/img_png/hivtime_boxplot_conference_500_dpi.png", 
+       units = "cm", width = 24, height = 12, dpi = 500)
+
+
+# 5. Avidity: Accuracy, FRR, TRR, FLTR ---------------------------------------------------
+
+# Contingency table: avidity vs estimated (Recent ≤ 180 days, Long-term ≥ 365)
+avidity_contingency <- hivtime_df |> 
+    rename(avidity = biorad_avidity) |> 
+    mutate(est_tsi = hivtime_v2_months * 30) |>
+    rename(known_tsi = duration_of_infection_days) |> 
+    select(scount, protocol, known_tsi, est_tsi, avidity) |> 
+    filter(!scount %in% "14-00725") |> 
+    filter(!protocol %in% c(paste0("FL", seq(1:9)))) |>
+    filter(known_tsi <= 180 | known_tsi >= 365) |> 
+    mutate(avidity = ifelse(avidity <= 70,"recent", "long-term")) |> 
+    mutate(est_tsi = ifelse(est_tsi <= 180,"recent", "long-term")) |> 
+    mutate(known_tsi = ifelse(known_tsi <= 180,"recent", "long-term")) |> 
+    drop_na()
+
+
+
+avidity_contingency$avidity = paste("Avidity =", avidity_contingency$avidity)
+avidity_contingency$est_tsi = paste("Estimated =", avidity_contingency$est_tsi)
+avidity_contingency$known_tsi = paste("Known =", avidity_contingency$known_tsi)
+table(avidity_contingency$avidity, avidity_contingency$known_tsi)
+table(avidity_contingency$est_tsi, avidity_contingency$known_tsi)
+
+### Avidity ###
+(n_avidity = 171 + 40 + 11 + 12) # total number of samples 234
+# Accuracy (%) known vs avidity (no NA, no FL1:FL9) - 90,17% (vs 90,7% paper)
+# Accuracy = (true positives + true negatives) / (total)
+avidity_accuracy_180 = (171 + 40) / (171 + 40 + 11 + 12) * 100
+avidity_accuracy_180
+
+# FRR (False Positive)/(False Positives + True Negatives)
+(avidity_FRR_180 <- 12 / (12 + 171) * 100) # 6.56% (vs 6% paper)
+# TRR (True Positive)/(True Positives + False Negatives)
+(avidity_TRR_180 <- 40 / (40 + 11) * 100) # 78.43%
+
+# FLTR (False Positive)/(True Positives + False Negatives)
+(avidiy_FLTR_180 <- 11 / (40 + 11) * 100) # 21.57%
+
+### HIVtime ###
+(n_hivtime = 181 + 27 + 24 + 2) # total number of samples 234
+# Accuracy (%) known vs estimated (no NA, no FL1:FL9) - 88.89%
+# Accuracy = (true positives + true negatives) / (total)
+hivtime_accuracy_180 = (181 + 27) / (181 + 27 + 24 + 2) * 100
+hivtime_accuracy_180
+
+# FRR (False Positive)/(False Positives + True Negatives)
+(hivtime_FRR_180 <- 2 / (2 + 181) * 100) # 1.09%
+# TRR (True Positive)/(True Positives + False Negatives)
+(hivtime_TRR_180 <- 27 / (27 + 24) * 100) # 52.94%
+
+# FLTR (False Positive)/(True Positives + False Negatives)
+(hivtime_FLTR_180 <- 24 / (24 + 27) * 100) # 47.06%
+
+# recent and long-term (51 and 183)
+table(avidity_contingency$known_tsi) 
+
+
+# 6. BED CEIA: Accuracy, FRR, TRR, FLTR ---------------------------------------------------
+
+# Contingency table: avidity vs estimated (threshold is 180/356 days)
+bed_contingency <- hivtime_df |> 
+    rename(bed = elisa_sum_bed) |> 
+    mutate(est_tsi = hivtime_v2_months * 30) |>
+    rename(known_tsi = duration_of_infection_days) |> 
+    select(scount, protocol, known_tsi, est_tsi, bed) |> 
+    filter(!scount %in% "14-00725") |> 
+    filter(!protocol %in% c(paste0("FL", seq(1:9)))) |>
+    filter(known_tsi <= 180 | known_tsi >= 365) |> 
+    mutate(est_tsi = ifelse(est_tsi <= 180,"recent", "long-term")) |> 
+    mutate(known_tsi = ifelse(known_tsi <= 180,"recent", "long-term")) |> 
+    drop_na()
+ 
+
+
+bed_contingency$bed = paste("BED = ", bed_contingency$bed)
+bed_contingency$est_tsi = paste("Estimated =", bed_contingency$est_tsi)
+bed_contingency$known_tsi = paste("Known =", bed_contingency$known_tsi)
+table(bed_contingency$bed, bed_contingency$known_tsi)
+table(bed_contingency$est_tsi, bed_contingency$known_tsi)
+
+### BED CEIA ###
+(n_bed = 159 + 24 + 13 + 38) # total number of samples 234
+# Accuracy (%) known vs avidity (no NA, no FL1:FL9) - 84.18% (vs 87.4% paper)
+# Accuracy = (true positives + true negatives) / (total)
+bed_accuracy_180 = (159 + 38) / (159 + 38 + 13 + 24) * 100
+bed_accuracy_180
+
+# FRR (False Positive)/(False Positives + True Negatives)
+(bed_FRR_180 <- 24 / (24 + 159) * 100) # 13.11% (vs 8.4% paper)
+# TRR (True Positive)/(True Positives + False Negatives)
+(bed_TRR_180 <- 38 / (38 + 13) * 100) # 74.51%
+
+# FLTR (False Positive)/(True Positives + False Negatives)
+(bed_FLTR_180 <- 13 / (38 + 13) * 100) # 25.49% (vs 18% paper)
+
+### HIVtime ###
+(n_hivtime_bed = 181 + 26 + 25 + 2) # total number of samples 234
+# Accuracy (%) known vs estimated (no NA, no FL1:FL9) - 88.46%
+# Accuracy = (true positives + true negatives) / (total)
+hivtime_accuracy_180_bed = (181 + 26) / (181 + 26 + 25 + 2) * 100
+hivtime_accuracy_180_bed
+
+# FRR (False Positive)/(False Positives + True Negatives)
+(hivtime_bed_FRR_180 <- 2 / (2 + 181) * 100) # 1.09%
+# TRR (True Positive)/(True Positives + False Negatives)
+(hivtime_bed_TRR_180 <- 26 / (26 + 25) * 100) # 50.98%
+
+# FLTR (False Positive)/(True Positives + False Negatives)
+(hivtime_bed_FLTR_180 <- 25 / (26 + 25) * 100) # 49.02%
+
+# recent and long-term (51 and 183)
+table(bed_contingency$known_tsi) 
+
+
+
+# 7. Known vs Estimated (Full-length) --------------------------------------
+
+# Contingency table: known vs estimated (threshold is 3 months)
+contingency_cutoff_3 <- hivtime_df |> 
+    rename(est_tsi = hivtime_v2_months) |>
+    rename(known_tsi = duration_of_infection_months) |> 
+    select(scount, protocol, known_tsi, est_tsi) |> 
+    filter(!scount %in% "14-00725") |> 
+    filter(!protocol %in% c(paste0("FL", seq(1:9)))) |>
+    mutate(est_tsi = ifelse(est_tsi <= 3,"recent", "long-term")) |> 
+    mutate(known_tsi = ifelse(known_tsi <= 3,"recent", "long-term"))
+
+
+contingency_cutoff_3$est_tsi = paste("Estimated =", contingency_cutoff_3$est_tsi)
+contingency_cutoff_3$known_tsi = paste("Known =", contingency_cutoff_3$known_tsi)
+table(contingency_cutoff_3$est_tsi, contingency_cutoff_3$known_tsi)
+
+
+(n = 203 + 20 + 32 + 3) # total number of samples 258
+# Accuracy (%) known vs estimated (no NA, no FL1:FL9) - 86,43%
+# Accuracy = (true positives + true negatives) / (total)
+hivtime_accuracy_3 = (203 + 20) / (203 + 20 + 32 + 3) * 100
+hivtime_accuracy_3
+
+# FRR (False Positive)/(False Positives + True Negatives)
+(hivtime_FRR_3 <- 3 / (3 + 203) * 100) # 1.46%
+# TRR (True Positive)/(True Positives + False Negatives)
+(hivtime_TRR_3 <- 20 / (20 + 32) * 100) # 38.46%
+
+
+
+# Contingency table: known vs estimated (threshold is 6 months)
+contingency_cutoff_6 <- hivtime_df |> 
+    rename(est_tsi = hivtime_v2_months) |>
+    rename(known_tsi = duration_of_infection_months) |> 
+    select(scount, protocol, known_tsi, est_tsi) |> 
+    filter(!scount %in% "14-00725") |> 
+    filter(!protocol %in% c(paste0("FL", seq(1:9)))) |>
+    mutate(est_tsi = ifelse(est_tsi <= 6,"recent", "long-term")) |> 
+    mutate(known_tsi = ifelse(known_tsi <= 6,"recent", "long-term"))
+
+
+contingency_cutoff_6$est_tsi = paste("Estimated =", contingency_cutoff_6$est_tsi)
+contingency_cutoff_6$known_tsi = paste("Known =", contingency_cutoff_6$known_tsi)
+table(contingency_cutoff_6$est_tsi, contingency_cutoff_6$known_tsi)
+
+
+(n = 196 + 31 + 29 + 2) # total number of samples 258
+# Accuracy (%) known vs estimated (no NA, no FL1:FL9) - 87,98%
+# Accuracy = (true positives + true negatives) / (total)
+hivtime_accuracy_6 = (196 + 31) / (196 + 31 + 29 + 2) * 100
+hivtime_accuracy_6
+
+# FRR (False Positive)/(False Positives + True Negatives)
+(hivtme_FRR_6 <- 2 / (2 + 196) * 100) # 1.01%
+# TRR (True Positive)/(True Positives + False Negatives)
+(hivtime_TRR_6 <- 31 / (31 + 29) * 100) # 51.67%
+
+
+
+# Contingency table: known vs estimated (threshold is 12 months)
+contingency_cutoff_12 <- hivtime_df |> 
+    rename(est_tsi = hivtime_v2_months) |>
+    rename(known_tsi = duration_of_infection_months) |> 
+    select(scount, protocol, known_tsi, est_tsi) |> 
+    filter(!scount %in% "14-00725") |> 
+    filter(!protocol %in% c(paste0("FL", seq(1:9)))) |>
+    mutate(est_tsi = ifelse(est_tsi <= 12,"recent", "long-term")) |> 
+    mutate(known_tsi = ifelse(known_tsi <= 12,"recent", "long-term"))
+
+
+
+errors_12 <- contingency_cutoff_12 |> 
+    mutate(difference = ifelse(known_tsi != est_tsi, "error", "no difference"))
+
+contingency_cutoff_12$est_tsi = paste("Estimated =", contingency_cutoff_12$est_tsi)
+contingency_cutoff_12$known_tsi = paste("Known =", contingency_cutoff_12$known_tsi)
+table(contingency_cutoff_12$est_tsi, contingency_cutoff_12$known_tsi)
+
+(n = 162 + 48 + 23 + 25) # total number of samples 258
+# Accuracy (%) known vs estimated (no NA, no FL1:FL9) - 81.40%
+# Accuracy = (true positives + true negatives) / (total)
+hivtime_accuracy_12 = (162 + 48) / (162 + 48 + 23 + 25) * 100
+hivtime_accuracy_12
+
+# FRR (False Positive)/(False Positives + True Negatives)
+(hivtime_FRR_12 <- 23 / (23 + 162) * 100) # 12.43%
+# TRR (True Positive)/(True Positives + False Negatives)
+(hivtime_TRR_12 <- 48 / (25 + 48) * 100) # 65.75%
+
+
+# Contingency table: known vs estimated (threshold is 18 months)
+contingency_cutoff_18 <- hivtime_df |> 
+    rename(est_tsi = hivtime_v2_months) |>
+    rename(known_tsi = duration_of_infection_months) |> 
+    select(scount, protocol, known_tsi, est_tsi) |> 
+    filter(!scount %in% "14-00725") |> 
+    filter(!protocol %in% c(paste0("FL", seq(1:9)))) |>
+    mutate(est_tsi = ifelse(est_tsi <= 18,"recent", "long-term")) |> 
+    mutate(known_tsi = ifelse(known_tsi <= 18,"recent", "long-term"))
+
+contingency_cutoff_18$est_tsi = paste("Estimated =", contingency_cutoff_18$est_tsi)
+contingency_cutoff_18$known_tsi = paste("Known =", contingency_cutoff_18$known_tsi)
+table(contingency_cutoff_18$est_tsi, contingency_cutoff_18$known_tsi)
+
+(n = 138 + 77 + 21 + 22) # total number of samples 258
+# Accuracy (%) known vs estimated (no NA, no FL1:FL9) - 83.33%
+# Accuracy = (true positives + true negatives) / (total)
+hivtime_accuracy_18 = (138 + 77) / (138 + 77 + 21 + 22) * 100
+hivtime_accuracy_18
+
+# FRR (False Positive)/(False Positives + True Negatives)
+(hivtime_FRR_18 <- 21 / (21 + 138) * 100) # 13.21%
+# TRR (True Positive)/(True Positives + False Negatives)
+(hivtime_TRR_18 <- 77 / (77 + 22) * 100) # 77.78%
+
+
+# Contingency table: known vs estimated (threshold is 24 months)
+contingency_cutoff_24 <- hivtime_df |> 
+    rename(est_tsi = hivtime_v2_months) |>
+    rename(known_tsi = duration_of_infection_months) |> 
+    select(scount, protocol, known_tsi, est_tsi) |> 
+    filter(!scount %in% "14-00725") |> 
+    filter(!protocol %in% c(paste0("FL", seq(1:9)))) |>
+    mutate(est_tsi = ifelse(est_tsi <= 24,"recent", "long-term")) |> 
+    mutate(known_tsi = ifelse(known_tsi <= 24,"recent", "long-term"))
+
+contingency_cutoff_24$est_tsi = paste("Estimated =", contingency_cutoff_24$est_tsi)
+contingency_cutoff_24$known_tsi = paste("Known =", contingency_cutoff_24$known_tsi)
+table(contingency_cutoff_24$est_tsi, contingency_cutoff_24$known_tsi)
+
+(n = 114 + 99 + 31 + 14) # total number of samples 258
+# Accuracy (%) known vs estimated (no NA, no FL1:FL9) - 82.56%
+# Accuracy = (true positives + true negatives) / (total)
+hivtime_accuracy_24 = (114 + 99) / (114 + 99 + 31 + 14) * 100
+hivtime_accuracy_24
+
+# FRR (False Positive)/(False Positives + True Negatives)
+(hivtime_FRR_24 <- 31 / (31 + 114) * 100) # 21.38%
+# TRR (True Positive)/(True Positives + False Negatives)
+(hivtime_TRR_24 <- 99 / (99 + 14) * 100) # 87.61%
+
+
+# 8. Known vs Estimated (Pol) ---------------------------------------------
+
+# Contingency table: known vs estimated (threshold is 12 months)
+pol_cutoff_12 <- hivtime_pol_df |> 
+    rename(est_tsi = hivtime_v2_frg) |>
+    rename(known_tsi = duration_of_infection_months) |> 
+    select(scount, protocol, known_tsi, est_tsi) |> 
+    filter(!scount %in% "14-00725") |> 
+    filter(!protocol %in% c(paste0("FL", seq(1:9)))) |>
+    mutate(est_tsi = ifelse(est_tsi <= 12,"recent", "long-term")) |> 
+    mutate(known_tsi = ifelse(known_tsi <= 12,"recent", "long-term"))
+
+pol_cutoff_12$est_tsi = paste("Estimated =", pol_cutoff_12$est_tsi)
+pol_cutoff_12$known_tsi = paste("Known =", pol_cutoff_12$known_tsi)
+table(pol_cutoff_12$est_tsi, pol_cutoff_12$known_tsi)
+
+(n_pol = 184 + 29 + 1 + 44) # total number of samples 258
+# Accuracy (%) known vs estimated (no FL1:FL9) - 82.56%
+# Accuracy = (true positives + true negatives) / (total)
+pol_hivtime_accuracy_12 = (184 + 29) / (184 + 29 + 1 + 44) * 100
+pol_hivtime_accuracy_12
+
+# FRR (False Positive)/(False Positives + True Negatives)
+(pol_FRR_12 <- 1 / (1 + 184) * 100) # 0.541%
+# TRR (True Positive)/(True Positives + False Negatives)
+(pol_TRR_12 <- 29 / (29 + 44) * 100) # 39.73%
+
+
+# 9. Scatter plots TSI Difference -----------------------------------------
+
+### Full-length ###
+hivtime_fl_diff <- hivtime_df |> 
+    rename(est_tsi = hivtime_v2_months) |>
+    rename(known_tsi = duration_of_infection_months) |> 
+    select(scount, protocol, known_tsi, est_tsi) |> 
+    filter(!scount %in% "14-00725") |> 
+    filter(!protocol %in% c(paste0("FL", seq(1:9)))) |> 
+    mutate(tsi_diff = known_tsi - est_tsi) |>
+    mutate(diff_abs = abs(tsi_diff)) |> 
+    mutate(tsi_levels = ifelse(diff_abs <= 1, 
+                               paste("0 <", greeks("Delta"), "\u2264", "1"), 
+                               ifelse(diff_abs > 1 & diff_abs <= 3, 
+                                    paste("1 <", greeks("Delta"), "\u2264", "3"), 
+                               ifelse(diff_abs > 3 & diff_abs <= 6, 
+                                    paste("3 <", greeks("Delta"), "\u2264", "6"), 
+                               ifelse(diff_abs > 6 & diff_abs <= 12, 
+                                    paste("6 <", greeks("Delta"), "\u2264", "12"),
+                               ifelse(diff_abs > 12 & diff_abs <= 24, 
+                                    paste("12 <", greeks("Delta"), "\u2264", "24"),
+                                    paste(greeks("Delta"), "> 24"))))))) 
+
+(hivtime_fl_diff_plot <- hivtime_fl_diff |> 
+    ggplot() +
+    geom_point(aes(x = known_tsi, y = est_tsi, 
+                   color = factor(tsi_levels, 
+                   levels = c(paste("0 <", greeks("Delta"), "\u2264", "1"),
+                              paste("1 <", greeks("Delta"), "\u2264", "3"),
+                              paste("3 <", greeks("Delta"), "\u2264", "6"), 
+                              paste("6 <", greeks("Delta"), "\u2264", "12"),
+                              paste("12 <", greeks("Delta"), "\u2264", "24"),
+                              paste(greeks("Delta"), "> 24"))))) +
+    labs(x = "Known TSI", y = "Estimated TSI") +
+    ggtitle("full-length (recency threshlod: 12 months)") +
+    scale_x_continuous(limits = c(0, 140), breaks = seq(0,140,20)) +
+    scale_y_continuous(limits = c(0, 140), breaks = seq(0,140,20)) +
+    scale_color_manual(name = "TSI difference", 
+                       values = c("#FFB90F", "#778899", "#5D92B1", 
+                                  "#104E8B", "#293352", "#6B4226")) +
+    # Add a text box
+    geom_label(label = "Accuracy: 81.4%, FRR: 12.4%, TRR: 65.8%", 
+                   x = 60, y = 130,
+                   label.padding = unit(0.55, "lines"),
+                   label.size = 0.25,
+                   color = "grey10",
+                   fill = "white") +
+    theme_minimal() +
+    theme(text = element_text(size = 12, color = "grey15"), 
+          panel.background = element_rect(fill = "white", colour = "grey80"), 
+          axis.title = element_text(size = 12, 
+          color = "grey15"),
+          legend.text = element_text(size = 10), 
+          legend.background = element_rect(color = "white")) +
+    theme(legend.position = c(0.8, 0.3), 
+          legend.key = element_rect(color = "grey15")))
+
+# Save the plot
+ggsave("images/img_png/hivtime_fl_diff_400_dpi.png", 
+       units = "cm", width = 12, height = 12, dpi = 400)
+
+
+### Pol ###
+hivtime_pol_diff <- hivtime_pol_df |> 
+    rename(est_tsi = hivtime_v2_frg) |>
+    rename(known_tsi = duration_of_infection_months) |> 
+    select(scount, protocol, known_tsi, est_tsi) |> 
+    filter(!scount %in% "14-00725") |> 
+    filter(!protocol %in% c(paste0("FL", seq(1:9)))) |> 
+    mutate(tsi_diff = known_tsi - est_tsi) |>
+    mutate(diff_abs = abs(tsi_diff)) |> 
+    mutate(tsi_levels = ifelse(diff_abs <= 1, 
+                               paste("0 <", greeks("Delta"), "\u2264", "1"), 
+                               ifelse(diff_abs > 1 & diff_abs <= 3, 
+                                    paste("1 <", greeks("Delta"), "\u2264", "3"), 
+                               ifelse(diff_abs > 3 & diff_abs <= 6, 
+                                    paste("3 <", greeks("Delta"), "\u2264", "6"), 
+                                ifelse(diff_abs > 6 & diff_abs <= 12, 
+                                    paste("6 <", greeks("Delta"), "\u2264", "12"),
+                                ifelse(diff_abs > 12 & diff_abs <= 24, 
+                                    paste("12 <", greeks("Delta"), "\u2264", "24"),
+                                    paste(greeks("Delta"), "> 24"))))))) 
+
+(hivtime_pol_diff_plot <- hivtime_pol_diff %>%
+        ggplot() +
+        geom_point(aes(x = known_tsi, y = est_tsi, 
+                       color = factor(tsi_levels, 
+                       levels = c(paste("0 <", greeks("Delta"), "\u2264", "1"),
+                                  paste("1 <", greeks("Delta"), "\u2264", "3"),
+                                  paste("3 <", greeks("Delta"), "\u2264", "6"), 
+                                  paste("6 <", greeks("Delta"), "\u2264", "12"),
+                                  paste("12 <", greeks("Delta"), "\u2264", "24"),
+                                  paste(greeks("Delta"), "> 24"))))) +
+        labs(x = "Known TSI", y = "Estimated TSI") +
+        labs(title = expression(italic("pol")*" region (recency threshlod: 12 months)")) +
+        scale_x_continuous(limits = c(0, 140), breaks = seq(0,140,20)) +
+        scale_y_continuous(limits = c(0, 140), breaks = seq(0,140,20)) +
+        scale_color_manual(name = "TSI difference", 
+                           values = c("#FFB90F", "#778899", "#5D92B1", 
+                                      "#104E8B", "#293352", "#6B4226")) +
+        # Add a text box
+        geom_label(label = "Accuracy: 82.6%, FRR: 0.5%, TRR: 39.7%", 
+                   x = 84, y = 10,
+                   label.padding = unit(0.55, "lines"),
+                   label.size = 0.25,
+                   color = "grey10",
+                   fill = "white") +
+        theme_minimal() +
+        theme(text = element_text(size = 12, color = "grey15"), 
+              panel.background = element_rect(fill = "white", colour = "grey80"), 
+              axis.title = element_text(size = 12, 
+                                        color = "grey15"),
+              legend.text = element_text(size = 10), 
+              legend.background = element_rect(color = "white")) +
+        theme(legend.position = c(0.8, 0.7), 
+              legend.key = element_rect(color = "grey15")))
+
+# Save the plot
+ggsave("images/img_png/hivtime_pol_diff_400_dpi.png", 
+       units = "cm", width = 12, height = 12, dpi = 400)
