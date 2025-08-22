@@ -16,6 +16,7 @@ params.mafs_patstats_search_dir = "FG18_HIV_Pipelines/HIV-phyloTSI/HIVtime_singl
 
 
 process SELECT_SAMPLES {
+  label "low"
   conda "${projectDir}/envs/retrainingR.yml"
   publishDir "${params.outdir}/01_filtered_dataset", mode: "copy", overwrite: true
   
@@ -38,7 +39,7 @@ process SELECT_SAMPLES {
 }
 
 process COPY_SELECT_MAFS {
-    label "select_mafs_patstats"
+    label "low"
     publishDir "${params.outdir}/02_selected_mafs", mode: 'copy', overwrite: true
     //debug true
 
@@ -62,6 +63,7 @@ process COPY_SELECT_MAFS {
 }
 
 process CONCATINATE_MAFS {
+  label "low"
   publishDir "${params.outdir}/03_concatinated_maf", mode: "copy", overwrite: true
   debug true
 
@@ -80,7 +82,7 @@ process CONCATINATE_MAFS {
 
 
 process COPY_SELECT_PATSTATS {
-    label "select_mafs_patstats"
+    label "low"
     publishDir "${params.outdir}/04_selected_patstats", mode: 'copy', overwrite: true
     //debug true
 
@@ -105,6 +107,7 @@ process COPY_SELECT_PATSTATS {
 
 
 process REMOVE_PROP_GP {
+  label "low"
   conda "${projectDir}/envs/phylo_tsi.yml"
   publishDir "${params.outdir}/05_cleaned_patstats", mode: "copy", overwrite: true
   debug true
