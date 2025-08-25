@@ -13,6 +13,7 @@ if (!params.dataset) {
 
 params.sheet = 1
 params.mafs_patstats_search_dir = "FG18_HIV_Pipelines/HIV-phyloTSI/HIVtime_single_full_length_samples_v2/" // change accordingly; a folder where are all single scount_maf.csv.
+params.reference = "${projectDir}/inputs/ref_3455.fasta"
 
 
 process SELECT_SAMPLES {
@@ -149,6 +150,32 @@ process CONCATINATE_PATSTATS {
   }
 
 
+process GET_REGIONS_FOR_MASKING {
+  label "low"
+  conda "${projectDir}/envs/phylo_tsi.yml"
+  publishDir "${params.outdir}/07_primer_product_regions", mode: "copy", overwrite: true
+  debug true
+
+  input:
+    path ref_fasta
+    path primer_fasta
+    
+    
+  output:
+    path "regions.csv"
+    
+  script:
+    """
+    primer_finder.py \
+     --ref ${ref_fasta} \
+     --primers ${primer_fasta} \
+     --output regions.csv
+    
+    """
+  }
+
+
+
 workflow {
   ch_dataset = Channel.fromPath ( params.dataset, checkIfExists: true)
   ch_samples = SELECT_SAMPLES ( ch_dataset, params.sheet)
@@ -157,6 +184,9 @@ workflow {
   ch_patstats = COPY_SELECT_PATSTATS ( ch_samples.Txt, params.mafs_patstats_search_dir )
   ch_patstats_no_prop_gp = REMOVE_PROP_GP ( ch_patstats.flatten() )
   ch_concat_patstat = CONCATINATE_PATSTATS ( ch_patstats_no_prop_gp.collect())
+  ch_primers = Channel.fromPath ( params.primers, checkIfExists: true)
+  GET_REGIONS_FOR_MASKING (params.reference, ch_primers)
+  
 
 }
 
