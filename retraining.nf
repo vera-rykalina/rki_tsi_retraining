@@ -16,10 +16,36 @@ params.mafs_patstats_search_dir = "FG18_HIV_Pipelines/HIV-phyloTSI/HIVtime_singl
 params.reference = "${projectDir}/inputs/ref_3455.fasta"
 
 
+
+process GET_REGIONS_FOR_MASKING {
+  label "low"
+  conda "${projectDir}/envs/phylo_tsi.yml"
+  publishDir "${params.outdir}/01_primer_product_regions", mode: "copy", overwrite: true
+  debug true
+
+  input:
+    path ref_fasta
+    path primer_fasta
+    
+    
+  output:
+    path "regions.csv"
+    
+  script:
+    """
+    primer_finder.py \
+     --ref ${ref_fasta} \
+     --primers ${primer_fasta} \
+     --output regions.csv
+    
+    """
+  }
+
+
 process SELECT_SAMPLES {
   label "low"
   conda "${projectDir}/envs/retrainingR.yml"
-  publishDir "${params.outdir}/01_filtered_dataset", mode: "copy", overwrite: true
+  publishDir "${params.outdir}/02_filtered_dataset", mode: "copy", overwrite: true
   
   input:
     path excel_file
@@ -41,7 +67,7 @@ process SELECT_SAMPLES {
 
 process COPY_SELECT_MAFS {
     label "low"
-    publishDir "${params.outdir}/02_selected_mafs", mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/03_selected_mafs", mode: 'copy', overwrite: true
     //debug true
 
     input:
@@ -65,7 +91,7 @@ process COPY_SELECT_MAFS {
 
 process CONCATINATE_MAFS {
   label "low"
-  publishDir "${params.outdir}/03_concatinated_maf", mode: "copy", overwrite: true
+  publishDir "${params.outdir}/04_concatinated_maf", mode: "copy", overwrite: true
   debug true
 
   input:
@@ -84,7 +110,7 @@ process CONCATINATE_MAFS {
 
 process COPY_SELECT_PATSTATS {
     label "low"
-    publishDir "${params.outdir}/04_selected_patstats", mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/05_selected_patstats", mode: 'copy', overwrite: true
     //debug true
 
     input:
@@ -110,7 +136,7 @@ process COPY_SELECT_PATSTATS {
 process REMOVE_PROP_GP {
   label "low"
   conda "${projectDir}/envs/phylo_tsi.yml"
-  publishDir "${params.outdir}/05_cleaned_patstats", mode: "copy", overwrite: true
+  publishDir "${params.outdir}/06_cleaned_patstats", mode: "copy", overwrite: true
   debug true
 
   input:
@@ -133,7 +159,7 @@ process REMOVE_PROP_GP {
 
 process CONCATINATE_PATSTATS {
   label "low"
-  publishDir "${params.outdir}/06_concatinated_patstats", mode: "copy", overwrite: true
+  publishDir "${params.outdir}/07_concatinated_patstats", mode: "copy", overwrite: true
   debug true
 
   input:
@@ -153,7 +179,7 @@ process CONCATINATE_PATSTATS {
 process GET_REGIONS_FOR_MASKING {
   label "low"
   conda "${projectDir}/envs/phylo_tsi.yml"
-  publishDir "${params.outdir}/07_primer_product_regions", mode: "copy", overwrite: true
+  publishDir "${params.outdir}/08_primer_product_regions", mode: "copy", overwrite: true
   debug true
 
   input:
