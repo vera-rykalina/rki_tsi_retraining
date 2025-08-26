@@ -14,6 +14,7 @@ if (!params.dataset) {
 params.sheet = 1
 params.mafs_patstats_search_dir = "FG18_HIV_Pipelines/HIV-phyloTSI/HIVtime_single_full_length_samples_v2/" // change accordingly; a folder where are all single scount_maf.csv.
 params.reference = "${projectDir}/inputs/ref_3455.fasta"
+params.refdata_tsi_hxb2 = "${projectDir}/inputs/HXB2_refdata.csv"
 
 
 
@@ -52,15 +53,15 @@ process SELECT_SAMPLES {
     val sheet
 
   output:
-    path "retraining_samples.csv", emit: Csv
-    path "retraining_samples.txt", emit: Txt
+    path "metadata.csv", emit: Csv
+    path "metadata.txt", emit: Txt
 
   script:
   """
   select_samples.R \
     --input ${excel_file} \
-    --output-csv retraining_samples.csv \
-    --output-txt retraining_samples.txt \
+    --output-csv metadata.csv \
+    --output-txt metadata.txt \
     --sheet ${sheet}
   """
 }
@@ -198,12 +199,110 @@ process CONCATINATE_PATSTATS {
     """
   }
 
+process PATSTATS_MASK_POSITIONS {
+  label "low"
+  conda "${projectDir}/envs/phylo_tsi.yml"
+  publishDir "${params.outdir}/09_patstats_postions_masked", mode: "copy", overwrite: true
+  debug true
+
+  input:
+    path concat_patstats
+    path regions_to_mask
+    
+  output:
+    path "patstats_positions_masked.csv"
+    
+  script:
+    """
+    patstats_primer_masker.py \
+     --patstats ${concat_patstats} \
+     --regions ${regions_to_mask} \
+     --output patstats_positions_masked.csv
+    
+    """
+  }
+
+process CALCULATE_MEANS {
+  label "low"
+  conda "${projectDir}/envs/phylo_tsi.yml"
+  publishDir "${params.outdir}/10_all_features_means", mode: "copy", overwrite: true
+  debug true
+
+  input:
+    path refdata_tsi_hxb2
+    path maf_positions_masked
+    path patstats_positions_masked
+    
+  output:
+    path "all_features_means.csv"
+    
+  script:
+    """
+    calculate_means.py \
+     --ref ${refdata_tsi_hxb2} \
+     --maf ${maf_positions_masked} \
+     --patstats ${patstats_positions_masked} \
+     --output all_features_means.csv
+    
+    """
+  }
+
+
+process GET_RETRAINING_DF {
+  label "low"
+  conda "${projectDir}/envs/phylo_tsi.yml"
+  publishDir "${params.outdir}/11_metadata_features", mode: "copy", overwrite: true
+  debug true
+
+  input:
+    path metadata_df
+    path features_means_df
+  
+    
+  output:
+    path "retraining_df.csv"
+    
+  script:
+    """
+    merge_metadata_features.py \
+     --metadata ${metadata_df} \
+     --features ${features_means_df} \
+     --output retraining_df.csv
+    
+    """
+  }
+
+
+process FEATURE_SELECTION_REPORTS {
+  label "medium"
+  conda "${projectDir}/envs/phylo_tsi.yml"
+  publishDir "${params.outdir}/12_features_reports", mode: "copy", overwrite: true
+  debug true
+
+  input:
+    path retraining_df
+
+  output:
+    path "features.csv"
+    path "features.txt"
+
+    
+  script:
+    """
+    feature_selection.py \
+     --input ${retraining_df} \
+     --output-csv features.csv \
+     --output-txt features.txt 
+    
+    """
+  }
 
 
 workflow {
   // inputs
   ch_dataset = Channel.fromPath ( params.dataset, checkIfExists: true )
   ch_primers = Channel.fromPath ( params.primers, checkIfExists: true )
+  ch_refdata = Channel.fromPath ( params.refdata_tsi_hxb2, checkIfExists: true )
   
   // general processes
   ch_masking_regions = GET_REGIONS_FOR_MASKING ( params.reference, ch_primers )
@@ -218,9 +317,12 @@ workflow {
   ch_patstats = COPY_SELECT_PATSTATS ( ch_samples.Txt, params.mafs_patstats_search_dir )
   ch_patstats_no_prop_gp = REMOVE_PROP_GP ( ch_patstats.flatten() )
   ch_concat_patstat = CONCATINATE_PATSTATS ( ch_patstats_no_prop_gp.collect() )
+  ch_patstats_pos_masked = PATSTATS_MASK_POSITIONS ( ch_concat_patstat, ch_masking_regions )  
 
-  
-
+  // remodelling
+  ch_all_features_means = CALCULATE_MEANS ( params.refdata_tsi_hxb2, ch_maf_pos_masked, ch_patstats_pos_masked )
+  ch_retraining_df = GET_RETRAINING_DF ( ch_samples.Csv, ch_all_features_means )
+  FEATURE_SELECTION_REPORTS (ch_retraining_df)
 }
 
 
