@@ -176,42 +176,20 @@ process CONCATINATE_PATSTATS {
   }
 
 
-process GET_REGIONS_FOR_MASKING {
-  label "low"
-  conda "${projectDir}/envs/phylo_tsi.yml"
-  publishDir "${params.outdir}/08_primer_product_regions", mode: "copy", overwrite: true
-  debug true
-
-  input:
-    path ref_fasta
-    path primer_fasta
-    
-    
-  output:
-    path "regions.csv"
-    
-  script:
-    """
-    primer_finder.py \
-     --ref ${ref_fasta} \
-     --primers ${primer_fasta} \
-     --output regions.csv
-    
-    """
-  }
-
-
 
 workflow {
+  // inputs
   ch_dataset = Channel.fromPath ( params.dataset, checkIfExists: true)
+  ch_primers = Channel.fromPath ( params.primers, checkIfExists: true)
+  // processes
+  ch_masking_regions = GET_REGIONS_FOR_MASKING (params.reference, ch_primers)
   ch_samples = SELECT_SAMPLES ( ch_dataset, params.sheet)
   ch_mafs = COPY_SELECT_MAFS ( ch_samples.Txt, params.mafs_patstats_search_dir )
   ch_concat_maf = CONCATINATE_MAFS ( ch_mafs.collect() )
   ch_patstats = COPY_SELECT_PATSTATS ( ch_samples.Txt, params.mafs_patstats_search_dir )
   ch_patstats_no_prop_gp = REMOVE_PROP_GP ( ch_patstats.flatten() )
   ch_concat_patstat = CONCATINATE_PATSTATS ( ch_patstats_no_prop_gp.collect())
-  ch_primers = Channel.fromPath ( params.primers, checkIfExists: true)
-  GET_REGIONS_FOR_MASKING (params.reference, ch_primers)
+
   
 
 }
