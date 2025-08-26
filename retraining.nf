@@ -107,10 +107,33 @@ process CONCATINATE_MAFS {
     """
   }
 
+process MAF_MASK_POSITIONS {
+  label "low"
+  conda "${projectDir}/envs/phylo_tsi.yml"
+  publishDir "${params.outdir}/05_maf_postions_masked", mode: "copy", overwrite: true
+  debug true
+
+  input:
+    path concat_maf
+    path regions_to_mask
+    
+  output:
+    path "maf_positions_masked.csv"
+    
+  script:
+    """
+    maf_primer_masker.py \
+     --maf ${concat_maf} \
+     --regions ${regions_to_mask} \
+     --output maf_positions_masked.csv
+    
+    """
+  }
+
 
 process COPY_SELECT_PATSTATS {
     label "low"
-    publishDir "${params.outdir}/05_selected_patstats", mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/06_selected_patstats", mode: 'copy', overwrite: true
     //debug true
 
     input:
@@ -136,7 +159,7 @@ process COPY_SELECT_PATSTATS {
 process REMOVE_PROP_GP {
   label "low"
   conda "${projectDir}/envs/phylo_tsi.yml"
-  publishDir "${params.outdir}/06_cleaned_patstats", mode: "copy", overwrite: true
+  publishDir "${params.outdir}/07_cleaned_patstats", mode: "copy", overwrite: true
   debug true
 
   input:
@@ -159,7 +182,7 @@ process REMOVE_PROP_GP {
 
 process CONCATINATE_PATSTATS {
   label "low"
-  publishDir "${params.outdir}/07_concatinated_patstats", mode: "copy", overwrite: true
+  publishDir "${params.outdir}/08_concatinated_patstats", mode: "copy", overwrite: true
   debug true
 
   input:
@@ -179,16 +202,22 @@ process CONCATINATE_PATSTATS {
 
 workflow {
   // inputs
-  ch_dataset = Channel.fromPath ( params.dataset, checkIfExists: true)
-  ch_primers = Channel.fromPath ( params.primers, checkIfExists: true)
-  // processes
-  ch_masking_regions = GET_REGIONS_FOR_MASKING (params.reference, ch_primers)
-  ch_samples = SELECT_SAMPLES ( ch_dataset, params.sheet)
+  ch_dataset = Channel.fromPath ( params.dataset, checkIfExists: true )
+  ch_primers = Channel.fromPath ( params.primers, checkIfExists: true )
+  
+  // general processes
+  ch_masking_regions = GET_REGIONS_FOR_MASKING ( params.reference, ch_primers )
+  ch_samples = SELECT_SAMPLES ( ch_dataset, params.sheet )
+
+  // processes maf
   ch_mafs = COPY_SELECT_MAFS ( ch_samples.Txt, params.mafs_patstats_search_dir )
   ch_concat_maf = CONCATINATE_MAFS ( ch_mafs.collect() )
+  ch_maf_pos_masked = MAF_MASK_POSITIONS ( ch_concat_maf, ch_masking_regions )
+  
+  // processes patstats
   ch_patstats = COPY_SELECT_PATSTATS ( ch_samples.Txt, params.mafs_patstats_search_dir )
   ch_patstats_no_prop_gp = REMOVE_PROP_GP ( ch_patstats.flatten() )
-  ch_concat_patstat = CONCATINATE_PATSTATS ( ch_patstats_no_prop_gp.collect())
+  ch_concat_patstat = CONCATINATE_PATSTATS ( ch_patstats_no_prop_gp.collect() )
 
   
 
