@@ -277,26 +277,54 @@ process FEATURE_SELECTION_REPORTS {
   label "medium"
   conda "${projectDir}/envs/phylo_tsi.yml"
   publishDir "${params.outdir}/12_features_reports", mode: "copy", overwrite: true
-  debug true
+  //debug true
 
   input:
     path retraining_df
 
   output:
-    path "features.csv"
-    path "features.txt"
+    path "features_without_vl.csv"
+    path "features_with_vl.csv"
+    path "features.txt", emit: Txt
 
     
   script:
     """
     feature_selection.py \
      --input ${retraining_df} \
-     --output-csv features.csv \
-     --output-txt features.txt 
+     --output-csv-with-vl features_with_vl.csv \
+     --output-csv-without-vl features_without_vl.csv \
+     --output-txt features.txt \
+     --amplicons
     
     """
   }
 
+process TRAINING {
+  label "medium"
+  conda "${projectDir}/envs/phylo_tsi.yml"
+  publishDir "${params.outdir}/13_training_outputs", mode: "copy", overwrite: true
+  debug true
+
+  input:
+    path retraining_df
+    path features_list
+
+  output:
+    path "model_igs"
+    path "metric.csv"
+
+    
+  script:
+    """
+    training.py \
+     --input ${retraining_df} \
+     --features ${features_list} \
+     --modeldir model_igs \
+     --report metric.csv \
+     --amplicons    
+    """
+  }
 
 workflow {
   // inputs
@@ -322,7 +350,8 @@ workflow {
   // remodelling
   ch_all_features_means = CALCULATE_MEANS ( params.refdata_tsi_hxb2, ch_maf_pos_masked, ch_patstats_pos_masked )
   ch_retraining_df = GET_RETRAINING_DF ( ch_samples.Csv, ch_all_features_means )
-  FEATURE_SELECTION_REPORTS (ch_retraining_df)
+  ch_features = FEATURE_SELECTION_REPORTS ( ch_retraining_df )
+  ch_model_igs = TRAINING ( ch_retraining_df, ch_features.Txt )
 }
 
 
