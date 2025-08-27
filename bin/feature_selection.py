@@ -47,7 +47,7 @@ def evaluate_combos(df, features, target_col, include_vl=False):
 
     for size in range(1, max_feats + 1):
         for combo in combinations(optional_feats, size):
-            combo_with_mand = tuple(sorted(mandatory_feats + list(combo)))
+            combo_with_mand = tuple(mandatory_feats + list(combo))
             X_sub = df[list(combo_with_mand)].values
 
             # Impute after adding is_mrc and viral_load if included
