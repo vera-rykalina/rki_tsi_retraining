@@ -48,12 +48,19 @@ def train_model(input_file, features_file, output_folder, report_file=None, ampl
     loginfo(f"Loading feature list from {features_file}")
     with open(features_file) as f:
         features_list = [line.strip() for line in f if line.strip()]
-    
+
+    # Ensure 'is_mrc' is in features
+    if 'is_mrc' not in features_list:
+        raise ValueError("Feature list must include 'is_mrc'")
+
     # Check that target is present
     if 'known_tsi_years' not in df.columns:
         raise ValueError("Target column 'known_tsi_years' not found in input data.")
-    y = df['known_tsi_years'].values
     
+    # Apply square-root transform to target to match model prediction assumptions
+    y_raw = df['known_tsi_years'].values
+    y = np.sqrt(y_raw)
+
     # Prepare features (exclude target and viral_load even if present)
     data_for_model_imp, scaler = prepare_data(df, features_list, is_amplicons=amplicons)
 
@@ -73,9 +80,9 @@ def train_model(input_file, features_file, output_folder, report_file=None, ampl
     grid.fit(X_train, y_train)
     best_rf = grid.best_estimator_
     loginfo(f"Best params: {grid.best_params_}")
-    loginfo(f"Best CV MAE: {-grid.best_score_:.4f}")
+    loginfo(f"Best CV MAE (sqrt space): {-grid.best_score_:.4f}")
 
-    # Train error model for MAE prediction
+    # Train error model for MAE prediction on residuals in sqrt space
     y_train_pred = best_rf.predict(X_train)
     train_residuals = np.abs(y_train - y_train_pred)
     err_model = RandomForestRegressor(random_state=42, n_estimators=100)
@@ -99,17 +106,20 @@ def train_model(input_file, features_file, output_folder, report_file=None, ampl
     # Generate test set predictions report if requested
     if report_file:
         y_test_pred = best_rf.predict(X_test)
+        # Convert predictions back to linear scale for reporting
+        y_test_pred_linear = y_test_pred ** 2
+        y_test_linear = y_test ** 2
         test_report = pd.DataFrame({
-            'true_known_tsi_years': y_test,
-            'predicted_known_tsi_years': y_test_pred,
-            'abs_error': np.abs(y_test - y_test_pred)
+            'true_known_tsi_years': y_test_linear,
+            'predicted_known_tsi_years': y_test_pred_linear,
+            'abs_error': np.abs(y_test_linear - y_test_pred_linear)
         })
         test_report.to_csv(report_file, index=False)
         loginfo(f"Test predictions report saved to {report_file}")
 
-        # Also print final test MAE
-        test_mae = mean_absolute_error(y_test, y_test_pred)
-        loginfo(f"Test set MAE: {test_mae:.4f}")
+        # Also print final test MAE in linear scale
+        test_mae = mean_absolute_error(y_test_linear, y_test_pred_linear)
+        loginfo(f"Test set MAE (linear scale): {test_mae:.4f}")
 
 
 if __name__ == "__main__":
