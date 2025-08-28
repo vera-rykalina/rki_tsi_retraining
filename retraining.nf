@@ -15,6 +15,7 @@ params.sheet = 1
 params.mafs_patstats_search_dir = "FG18_HIV_Pipelines/HIV-phyloTSI/HIVtime_single_full_length_samples_v2/" // change accordingly; a folder where are all single scount_maf.csv.
 params.reference = "${projectDir}/inputs/ref_3455.fasta"
 params.refdata_tsi_hxb2 = "${projectDir}/inputs/HXB2_refdata.csv"
+modelname = params.modelname
 
 
 
@@ -307,22 +308,26 @@ process TRAINING {
   debug true
 
   input:
+    path refdata_tsi_hxb2
     path retraining_df
     path features_list
+    val modelname
 
   output:
-    path "model_igs"
+    path "model_${modelname}"
     path "metric.csv"
-
     
   script:
     """
     training.py \
      --input ${retraining_df} \
      --features ${features_list} \
-     --modeldir model_igs \
+     --modeldir model_${modelname} \
      --report metric.csv \
+     --modelname ${modelname} \
      --amplicons    
+
+    mv ${refdata_tsi_hxb2} model_${modelname}
     """
   }
 
@@ -351,7 +356,7 @@ workflow {
   ch_all_features_means = CALCULATE_MEANS ( params.refdata_tsi_hxb2, ch_maf_pos_masked, ch_patstats_pos_masked )
   ch_retraining_df = GET_RETRAINING_DF ( ch_samples.Csv, ch_all_features_means )
   ch_features = FEATURE_SELECTION_REPORTS ( ch_retraining_df )
-  ch_model_igs = TRAINING ( ch_retraining_df, ch_features.Txt )
+  ch_model = TRAINING ( ch_refdata, ch_retraining_df, ch_features.Txt, params.modelname )
 }
 
 
