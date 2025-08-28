@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 import argparse
 import os
 import pickle
@@ -40,7 +41,7 @@ def prepare_data(df, features_list, is_amplicons=False):
     return data_imputed, scaler
 
 
-def train_model(input_file, features_file, output_folder, report_file=None, amplicons=False):
+def train_model(input_file, features_file, output_folder, report_file=None, amplicons=False, model_name="IGS"):
     loginfo(f"Loading data from {input_file}")
     df = pd.read_csv(input_file, index_col=0)
     
@@ -83,13 +84,13 @@ def train_model(input_file, features_file, output_folder, report_file=None, ampl
     # Save model components
     os.makedirs(output_folder, exist_ok=True)
 
-    with open(os.path.join(output_folder, "full_scaler.selfscale.IGS.pkl"), "wb") as f:
+    with open(os.path.join(output_folder, "full_scaler.selfscale.pkl"), "wb") as f:
         pickle.dump(scaler, f)
-    with open(os.path.join(output_folder, "full_model.selfscale.IGS.pkl"), "wb") as f:
+    with open(os.path.join(output_folder, f"full_model.selfscale.{model_name}.pkl"), "wb") as f:
         pickle.dump(best_rf, f)
-    with open(os.path.join(output_folder, "err_model_mae.IGS.pkl"), "wb") as f:
+    with open(os.path.join(output_folder, f"err_model_mae.{model_name}.pkl"), "wb") as f:
         pickle.dump(err_model, f)
-    with open(os.path.join(output_folder, "feature_list_MEANS_feats_IGS.txt"), "w") as f:
+    with open(os.path.join(output_folder, f"feature_list_{model_name}.txt"), "w") as f:
         for feat in features_list:
             f.write(f"{feat}\n")
 
@@ -106,9 +107,9 @@ def train_model(input_file, features_file, output_folder, report_file=None, ampl
         test_report.to_csv(report_file, index=False)
         loginfo(f"Test predictions report saved to {report_file}")
 
-    # Also print final test MAE
-    test_mae = mean_absolute_error(y_test, y_test_pred)
-    loginfo(f"Test set MAE: {test_mae:.4f}")
+        # Also print final test MAE
+        test_mae = mean_absolute_error(y_test, y_test_pred)
+        loginfo(f"Test set MAE: {test_mae:.4f}")
 
 
 if __name__ == "__main__":
@@ -118,6 +119,7 @@ if __name__ == "__main__":
     parser.add_argument("--modeldir", required=True, help="Folder name to save trained model components.")
     parser.add_argument("--report", help="CSV filename to save test set predictions report (optional).")
     parser.add_argument("--amplicons", action="store_true", default=False, help="Set is_mrc=1 (amplicons data). Default is False.")
+    parser.add_argument("--modelname", default="IGS", help="Model name used in saved file names (default: IGS).")
     args = parser.parse_args()
 
-    train_model(args.input, args.features, args.modeldir, args.report, amplicons=args.amplicons)
+    train_model(args.input, args.features, args.modeldir, args.report, amplicons=args.amplicons, model_name=args.modelname)
