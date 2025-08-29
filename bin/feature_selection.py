@@ -53,7 +53,8 @@ def evaluate_combos(df, features, target_col, include_vl=False):
             # Impute after adding is_mrc and viral_load if included
             X_imputed = _impute_knn(X_sub)
 
-            y = df[target_col].values
+            y = np.sqrt(df[target_col].values)  # <--- Square root transform here
+
             rf = RandomForestRegressor(n_estimators=200, oob_score=True, random_state=42)
             try:
                 rf.fit(X_imputed, y)
@@ -91,7 +92,6 @@ def save_txt_report(results, output_txt):
     with open(output_txt, 'w') as f:
         f.write('\n'.join(best['features']))
 
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--input', required=True, help='Input CSV file')
@@ -102,6 +102,10 @@ def main():
     args = parser.parse_args()
 
     df = pd.read_csv(args.input)
+
+    # Preprocess viral_load to log10(viral_load + 1)
+    if 'viral_load' in df.columns:
+        df['viral_load'] = np.log10(df['viral_load'] + 1)
 
     target_col = 'known_tsi_years'
     if target_col not in df.columns:
