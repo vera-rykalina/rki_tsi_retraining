@@ -309,6 +309,7 @@ process TRAINING {
 
   input:
     path refdata_tsi_hxb2
+    path regions_csv
     path retraining_df
     path features_list
     val modelname
@@ -328,6 +329,7 @@ process TRAINING {
      --amplicons    
 
     mv ${refdata_tsi_hxb2} model_${modelname}
+    mv ${regions_csv} model_${modelname}
     """
   }
 
@@ -356,7 +358,7 @@ workflow {
   ch_all_features_means = CALCULATE_MEANS ( params.refdata_tsi_hxb2, ch_maf_pos_masked, ch_patstats_pos_masked )
   ch_retraining_df = GET_RETRAINING_DF ( ch_samples.Csv, ch_all_features_means )
   ch_features = FEATURE_SELECTION_REPORTS ( ch_retraining_df )
-  ch_model = TRAINING ( ch_refdata, ch_retraining_df, ch_features.Txt, params.modelname )
+  ch_model = TRAINING ( ch_masking_regions, ch_refdata, ch_retraining_df, ch_features.Txt, params.modelname )
 }
 
 
