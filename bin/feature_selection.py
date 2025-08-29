@@ -29,17 +29,15 @@ def _impute_knn(X, k=3):
     X_knn = imputer.fit_transform(X)
     return X_knn
 
-def evaluate_combos(df, features, target_col, include_vl=False):
+def evaluate_combos(df, features, target_col, include_vl=False, n_estimators_list=[100, 200, 300]):
     results = []
 
-    # Add viral_load if requested and present
     if include_vl and 'viral_load' not in features and 'viral_load' in df.columns:
         features = features + ['viral_load']
 
     max_feats = min(5, len(features))
     mandatory_feats = ['is_mrc']
 
-    # Verify is_mrc in df
     if 'is_mrc' not in df.columns:
         raise ValueError("'is_mrc' column must be present in dataframe before evaluating")
 
@@ -50,23 +48,53 @@ def evaluate_combos(df, features, target_col, include_vl=False):
             combo_with_mand = tuple(mandatory_feats + list(combo))
             X_sub = df[list(combo_with_mand)].values
 
-            # Impute after adding is_mrc and viral_load if included
             X_imputed = _impute_knn(X_sub)
+            y = np.sqrt(df[target_col].values)
 
-            y = np.sqrt(df[target_col].values)  # <--- Square root transform here
+            for n_estimators in n_estimators_list:
+                rf = RandomForestRegressor(n_estimators=n_estimators, oob_score=True, random_state=42)
+                try:
+                    rf.fit(X_imputed, y)
+                except ValueError as e:
+                    loginfo(f"Skipping combo {combo_with_mand} with n_estimators={n_estimators} due to error: {e}")
+                    continue
 
-            rf = RandomForestRegressor(n_estimators=200, oob_score=True, random_state=42)
-            try:
-                rf.fit(X_imputed, y)
-            except ValueError as e:
-                loginfo(f"Skipping combo {combo_with_mand} due to error: {e}")
-                continue
+                # OOB prediction and outlier detection
+                oob_preds = rf.oob_prediction_
+                errors = np.abs(y - oob_preds)
 
-            results.append({
-                'features': combo_with_mand,
-                'num_features': len(combo_with_mand),
-                'oob_score': rf.oob_score_
-            })
+                # Detecting outliers based on the errors
+                top_n = 5
+                outlier_indices = np.argsort(errors)[-top_n:][::-1]
+                outlier_info = [(idx, errors[idx]) for idx in outlier_indices]
+
+                # Track outlier categories: mild, moderate, extreme
+                mild_threshold = np.percentile(errors, 75)
+                moderate_threshold = np.percentile(errors, 90)
+                extreme_threshold = np.percentile(errors, 95)
+
+                outlier_categories = {
+                    'mild': [(idx, err) for idx, err in zip(outlier_indices, errors[outlier_indices]) if err < mild_threshold],
+                    'moderate': [(idx, err) for idx, err in zip(outlier_indices, errors[outlier_indices]) if mild_threshold <= err < moderate_threshold],
+                    'extreme': [(idx, err) for idx, err in zip(outlier_indices, errors[outlier_indices]) if err >= extreme_threshold]
+                }
+
+                loginfo(f"Outliers for combo {combo_with_mand} with n_estimators={n_estimators}:")
+                loginfo(f"Mild: {outlier_categories['mild']}")
+                loginfo(f"Moderate: {outlier_categories['moderate']}")
+                loginfo(f"Extreme: {outlier_categories['extreme']}")
+
+                # Feature importance
+                feature_importance = rf.feature_importances_
+
+                results.append({
+                    'features': combo_with_mand,
+                    'num_features': len(combo_with_mand),
+                    'n_estimators': n_estimators,
+                    'oob_score': rf.oob_score_,
+                    'outliers': outlier_info,
+                    'feature_importance': feature_importance.tolist()
+                })
     return results
 
 def save_csv_report(results, output_csv):
@@ -76,8 +104,10 @@ def save_csv_report(results, output_csv):
     for r in sorted_res:
         rows.append({
             'num_features': r['num_features'],
+            'n_estimators': r['n_estimators'],
             'oob_score': r['oob_score'],
-            'feature_names': ','.join(r['features'])
+            'feature_names': ','.join(r['features']),
+            'feature_importance': ','.join(map(str, r['feature_importance']))
         })
     df_out = pd.DataFrame(rows)
     df_out.to_csv(output_csv, index=False)
@@ -118,18 +148,17 @@ def main():
                     if c not in exclude_cols
                     and not any(c.startswith(pref) for pref in exclude_prefixes)]
 
-    # Add is_mrc as int column before evaluation
     df['is_mrc'] = int(args.amplicons)
 
     features_without_vl = [f for f in features_all if f != 'viral_load']
 
-    # Evaluate combos WITHOUT viral_load
-    results_without_vl = evaluate_combos(df, features_without_vl, target_col, include_vl=False)
+    results_without_vl = evaluate_combos(df, features_without_vl, target_col, include_vl=False,
+                                        n_estimators_list=[100, 200, 300])
     save_csv_report(results_without_vl, args.output_csv_without_vl)
     save_txt_report(results_without_vl, args.output_txt)
 
-    # Evaluate combos WITH viral_load
-    results_with_vl = evaluate_combos(df, features_without_vl, target_col, include_vl=True)
+    results_with_vl = evaluate_combos(df, features_without_vl, target_col, include_vl=True,
+                                     n_estimators_list=[100, 200, 300])
     save_csv_report(results_with_vl, args.output_csv_with_vl)
 
 if __name__ == '__main__':
