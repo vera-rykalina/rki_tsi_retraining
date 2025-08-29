@@ -59,9 +59,9 @@ filter_excel_data <- function(input_file, output_csv, output_txt, sheet = 1) {
   # multiplicity by phyloscanner ( visual inspections, selected if not all genes involved )
   
   df_filtered <- df_selected |> 
-    filter(multi_all_genes != "yes", 
-           pol_gap != "yes", pol_cov != "uneven",
-           gag_gap != "yes", gag_cov != "uneven") |> 
+    filter(multi_all_genes != "yes") |> 
+    filter(pol_gap != "yes", pol_cov != "uneven", gag_gap != "yes", gag_cov != "uneven") |> 
+    filter(known_tsi_days != 0, known_tsi_years != 1) |> # noisy samples
     arrange(scount)
   
   write.csv(df_filtered, output_csv, row.names = FALSE)
