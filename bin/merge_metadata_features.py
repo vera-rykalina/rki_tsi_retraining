@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import pandas as pd
 import argparse
 
@@ -16,25 +14,26 @@ def main():
     # Load metadata
     meta_df = pd.read_csv(args.metadata)
 
+    # Rename 'scount' to 'host.id' in metadata
+    meta_df.rename(columns={'scount': 'host.id'}, inplace=True)
+
     # Load features
     feat_df = pd.read_csv(args.features)
 
-    # Merge on scount == host.id
-    merged = pd.merge(meta_df, feat_df, left_on='scount', right_on='host.id', how='inner')
+    # Merge on 'host.id'
+    merged = pd.merge(meta_df, feat_df, on='host.id', how='inner')
 
     # Select columns:
-    # - IDs: 'scount' (to rename to sample_id) and 'host.id'
-    # - metadata cols viral_load and known_tsi_years
+    # - 'host.id', 'viral_load', 'known_tsi_years'
     # - all feature columns except 'host.id'
     feature_cols = [col for col in feat_df.columns if col != 'host.id']
-
-    cols_to_keep = ['scount', 'host.id', 'viral_load', 'known_tsi_years'] + feature_cols
+    cols_to_keep = ['host.id', 'viral_load', 'known_tsi_years'] + feature_cols
 
     # Filter merged dataframe
-    merged_filtered = merged.loc[:, cols_to_keep]
+    merged_filtered = merged[cols_to_keep]
 
-    # Rename scount to sample_id
-    merged_filtered.rename(columns={'scount': 'sample_id'}, inplace=True)
+    # Add 'sample_id' as the first column, copying 'host.id'
+    merged_filtered.insert(0, 'sample_id', merged_filtered['host.id'])
 
     # Save
     merged_filtered.to_csv(args.output, index=False)
