@@ -6,7 +6,17 @@ suppressMessages({
   library(argparse)
   library(readxl)
   library(dplyr)
+  library(findpython)
 })
+
+
+
+find_python_cmd(
+  minimum_version = NULL,
+  maximum_version = NULL,
+  required_modules = NULL,
+  error_message = NULL
+)
 
 
 
@@ -71,5 +81,6 @@ filter_excel_data <- function(input_file, output_csv, output_txt, sheet = 1) {
 
 # 4. Call the function with parsed arguments ------------------------------
 filter_excel_data(args$input, args$output_csv, args$output_txt, sheet_arg)
+
 
 

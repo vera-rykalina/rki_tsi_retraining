@@ -11,15 +11,15 @@ library(openxlsx)
 
 # 2. Export dataframe -----------------------------------------------------
 
-### Seroconvertor samples (singles) ###
-serocovertor_df <- read_excel("data/hiv_phylotsi_validation.xlsx",sheet = "Singles_hivtime_v2")
-head(serocovertor_df) 
-nrow(serocovertor_df)
+### Seroconverter samples (singles) ###
+serocoverter_df <- read_excel("data/hiv_phylotsi_validation.xlsx",sheet = "Singles_hivtime_v2")
+head(serocoverter_df) 
+nrow(serocoverter_df)
 
-### Seroconvertor samples (serology) ###
-seroconvertor_serology_df <- read_excel("data/Rezenz-Seq_valide_SK_20211021_KM.xlsx",sheet = "serology")
-head(seroconvertor_serology_df) 
-nrow(seroconvertor_serology_df)
+### Seroconverter samples (serology) ###
+seroconverter_serology_df <- read_excel("data/Rezenz-Seq_valide_SK_20211021_KM.xlsx",sheet = "serology")
+head(seroconverter_serology_df) 
+nrow(seroconverter_serology_df)
 
 ### BEEHIVE samples (singles) ###
 
@@ -30,22 +30,22 @@ nrow(beehive_df)
 
 
 # 3. Add to seroconvertor table 2 columns from serology table -------------
-seroconvertor_df <- serocovertor_df |> 
+seroconverter_df <- serocoverter_df |> 
   left_join(
-    seroconvertor_serology_df |> 
+    seroconverter_serology_df |> 
       select(scount, elisa_sum_bed, biorad_avidity), by = "scount")
 
 
 
 # 4. Select useful columns from seroconvertor df  -------------------------
-seroconvertor_df <- seroconvertor_df |>
+seroconverter_df <- seroconverter_df |>
   select(scount, sample_number, first_or_followup, duration_of_infection_days,
          subtype_prrt, se_vl_zu_blut_dat, se_vl_zu_data_next, multiplicity_of_infection,
          reads_raw_mln, reads_final_mln, protocol, elisa_sum_bed, biorad_avidity,
          pol_coverage, gag_coverage, subtype_kallisto, file_size_mb_r1, file_size_mb_r2,
          file_name, gap_pol, gap_pol_inf, gap_gag, gap_gag_inf, single_hivtime_v2,
          dual_all_genes, comments) |> 
-  mutate(project = "seroconvertor")
+  mutate(project = "seroconverter")
 
 
 
@@ -58,12 +58,12 @@ beehive_df <- beehive_df |>
          file_name, gap_pol, gap_pol_inf, gap_gag, gap_gag_inf, single_hivtime_v2,
          dual_all_genes, comments) |> 
   mutate(protocol = NA, elisa_sum_bed = NA,  biorad_avidity = NA, project = "beehive") |> 
-  select(all_of(colnames(seroconvertor_df)))
+  select(all_of(colnames(seroconverter_df)))
 
 
 
 # 6 Combine Seroconvertor and BEEHIVE tables ------------------------------
-full_df <- bind_rows(seroconvertor_df, beehive_df) 
+full_df <- bind_rows(seroconverter_df, beehive_df) 
 
 
 # 7. Apply some filters to the combined table -----------------------------
@@ -95,7 +95,7 @@ full_filtered_df <- full_df |>
 colnames(full_filtered_df)
 
 # 8. Write out an output as an .xlsx file ------------------------------------
-write.xlsx(full_filtered_df, file = "outputs/tsi_seroconvertor_beehive.xlsx")
+write.xlsx(full_filtered_df, file = "outputs/tsi_seroconverter_beehive.xlsx")
 
 
 
