@@ -2,16 +2,28 @@
 
 import pandas as pd
 import numpy as np
-import argparse
+import argparse, sys, os.path
 import warnings
 
 warnings.filterwarnings("ignore")
 
+# GLOBAL VARIABLES                                                             #
+# ============================================================================ #
+_args = None
+_progname=os.path.basename(sys.argv[0])
+
 # ----------------------------------------------------------------------
 # Logging
 # ----------------------------------------------------------------------
-def loginfo(s):
-    print(f"[INFO] {s}")
+def loginfo(s, verbose=True):
+    if verbose:
+        sys.stderr.write('  Info: {0}\n'.format(s))
+def logerr(s):
+    sys.stderr.write('  Warning: {0}\n'.format(s))
+def stoperr(s, errcode=1):
+    errword = 'Finished' if not errcode else 'Error'
+    sys.stderr.write('  {0}: {1}\n'.format(errword, s))
+    sys.exit(errcode)
 
 # ----------------------------------------------------------------------
 # Argument Parsing
@@ -29,6 +41,7 @@ def parse_args():
 # ----------------------------------------------------------------------
 def load_reference_data(ref_path):
     hxb2 = pd.read_csv(ref_path)
+    hxb2['position'] = hxb2['HXB2 base position'].astype(int) 
     hxb2['position'] = hxb2['HXB2 base position']
     hxb2.set_index('position', inplace=True)
 
@@ -59,44 +72,52 @@ def load_reference_data(ref_path):
 # ----------------------------------------------------------------------
 def load_patstats(fpath):
     df = pd.read_csv(fpath)
+    df['xcoord'] = df['xcoord'].astype(int)
     # Aggregate by host.id and xcoord, then unstack
     Xlrtt = df.groupby(['host.id', 'xcoord'])['normalised.largest.rtt'].mean().unstack()
     Xtips = df.groupby(['host.id', 'xcoord'])['tips'].mean().unstack()
     Xdual = df.groupby(['host.id', 'xcoord'])['solo.dual.count'].mean().unstack()
+    try:
+        assert (Xlrtt.index == Xtips.index).all()
+        assert (Xlrtt.index == Xdual.index).all()
+    except AssertionError:
+        logerr('Index mismatch between phyloscanner outputs: {}, {}, {}'.format(Xlrtt.shape, Xtips.shape, Xdual.shape))
+    loginfo('Loaded phyloscanner data, shape={}'.format(Xlrtt.shape))
     return Xlrtt, Xtips, Xdual
 
 # ----------------------------------------------------------------------
 # Load MAF
 # ----------------------------------------------------------------------
 def load_maf(fpath):
-    maf = pd.read_csv(fpath, index_col=0)
-    maf.columns = [int(float(c)) for c in maf.columns]
-    return maf
+    Xmaf = pd.read_csv(fpath, index_col=0)
+    Xmaf.columns = [int(float(c)) for c in Xmaf.columns]
+    loginfo('Loaded MAF data, shape={}'.format(Xmaf.shape))
+    return Xmaf
 
 # ----------------------------------------------------------------------
 # Calculate Feature Means (Refactored)
 # ----------------------------------------------------------------------
-def calculate_means(Xlrtt, Xtips, Xdual, maf, first_second, third, genes):
+def calculate_means(Xlrtt, Xtips, Xdual, Xmaf, first_second, third, genes):
     df = pd.DataFrame(index=Xlrtt.index)
 
     # Genome-wide features
     df['genome_lrtt'] = Xlrtt.mean(axis=1)
     df['genome_tips'] = Xtips.mean(axis=1)
     df['genome_dual'] = Xdual.mean(axis=1)
-    df['genome_maf12c'] = maf.loc[:, maf.columns.intersection(first_second)].mean(axis=1)
-    df['genome_maf3c'] = maf.loc[:, maf.columns.intersection(third)].mean(axis=1)
+    df['genome_maf12c'] = Xmaf.loc[:, Xmaf.columns.intersection(first_second)].mean(axis=1)
+    df['genome_maf3c'] = Xmaf.loc[:, Xmaf.columns.intersection(third)].mean(axis=1)
 
     # Per-gene features
     for gene, positions in genes.items():
-        gene_pos = maf.columns.intersection(positions)
+        gene_pos = Xmaf.columns.intersection(positions)
         maf12 = gene_pos.intersection(first_second)
         maf3 = gene_pos.intersection(third)
 
         df[f'{gene}_lrtt'] = Xlrtt.loc[:, Xlrtt.columns.intersection(gene_pos)].mean(axis=1)
         df[f'{gene}_tips'] = Xtips.loc[:, Xtips.columns.intersection(gene_pos)].mean(axis=1)
         df[f'{gene}_dual'] = Xdual.loc[:, Xdual.columns.intersection(gene_pos)].mean(axis=1)
-        df[f'{gene}_maf12c'] = maf.loc[:, maf12].mean(axis=1)
-        df[f'{gene}_maf3c'] = maf.loc[:, maf3].mean(axis=1)
+        df[f'{gene}_maf12c'] = Xmaf.loc[:, maf12].mean(axis=1)
+        df[f'{gene}_maf3c'] = Xmaf.loc[:, maf3].mean(axis=1)
 
     return df
 
@@ -113,10 +134,10 @@ def main():
     Xlrtt, Xtips, Xdual = load_patstats(args.patstats)
 
     loginfo("Loading MAF...")
-    maf = load_maf(args.maf)
+    Xmaf = load_maf(args.maf)
 
     loginfo("Calculating means...")
-    df_means = calculate_means(Xlrtt, Xtips, Xdual, maf, first_second, third, genes)
+    df_means = calculate_means(Xlrtt, Xtips, Xdual, Xmaf, first_second, third, genes)
 
     loginfo(f"Saving output to {args.output}")
     df_means.to_csv(args.output)
