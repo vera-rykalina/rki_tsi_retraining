@@ -1,0 +1,242 @@
+#!/usr/bin/env Rscript
+# Install and load packages if needed
+if (!requireNamespace("BiocManager", quietly = TRUE)) {
+install.packages("BiocManager")
+}
+if (!requireNamespace("DECIPHER", quietly = TRUE)) {
+BiocManager::install("DECIPHER")
+}
+if (!requireNamespace("Biostrings", quietly = TRUE)) {
+BiocManager::install("Biostrings")
+}
+library(DECIPHER)
+library(Biostrings)
+# Load your reference genome FASTA (can contain multiple sequences)
+genome <- readDNAStringSet("data/B.FR.83.HXB2_LAI_IIIB_BRU.K03455.fasta")
+# Define primer pairs as named list of DNAStringSets
+primer_pairs <- list(
+gag = DNAStringSet(c("TAGCAGTGGCGCCCGAACAG", "CCCATGCATTYAAAGTYCTAGGTGA")),
+INT = DNAStringSet(c("GTCTACCTGGCATGGGTACCAGCRC", "ATCCTGTCTACYTGCCACACAA")),
+PR = DNAStringSet(c("CCCTCARATCACTCTTTGGCARCGA", "CCTAATTGAACYTCCCARAARTCYTGAGT")),
+RT = DNAStringSet(c("AAACAATGGCCATTRACAGARGA", "CTAAYTTYTGTATRTCATTGACAGTCCA"))
+)
+# Helper function: reverse complement with degenerate bases support
+revcomp <- function(primer) {
+as.character(reverseComplement(DNAString(primer)))
+}
+# Function to find matches for one primer (forward or reverse complement)
+find_primer_matches <- function(primer, subject) {
+# primer: DNAString with possible IUPAC codes
+# subject: DNAStringSet (the genome sequences)
+vmatchPattern(primer, subject, max.mismatch = 0, with.indels = FALSE)
+}
+results <- data.frame()
+for (pair_name in names(primer_pairs)) {
+primers <- primer_pairs[[pair_name]]
+forward_primer <- DNAString(primers[1])
+reverse_primer <- DNAString(primers[2])
+reverse_primer_rc <- reverseComplement(reverse_primer)
+# Search primers in genome sequences
+fwd_matches <- find_primer_matches(forward_primer, genome)
+rev_matches <- find_primer_matches(reverse_primer_rc, genome)
+# Collect matches as data.frame for easier processing
+fwd_df <- data.frame(
+seqnames = names(genome)[queryHits(fwd_matches)],
+start = start(fwd_matches),
+end = end(fwd_matches),
+width = width(fwd_matches),
+stringsAsFactors = FALSE
+)
+rev_df <- data.frame(
+seqnames = names(genome)[queryHits(rev_matches)],
+start = start(rev_matches),
+end = end(rev_matches),
+width = width(rev_matches),
+stringsAsFactors = FALSE
+)
+if (nrow(fwd_df) == 0 || nrow(rev_df) == 0) {
+message(sprintf("No PCR products found for primer pair: %s", pair_name))
+next
+}
+# Find pairs on the same chromosome/sequence with forward before reverse
+# and calculate product size
+products <- data.frame()
+for (i in seq_len(nrow(fwd_df))) {
+for (j in seq_len(nrow(rev_df))) {
+if (fwd_df$seqnames[i] == rev_df$seqnames[j] && fwd_df$start[i] < rev_df$end[j]) {
+product_start <- fwd_df$start[i]
+product_end <- rev_df$end[j]
+product_size_with_primers <- product_end - product_start + 1
+amplicon_size_no_primers <- product_size_with_primers - width(forward_primer) - width(reverse_primer)
+products <- rbind(products, data.frame(
+primer_pair = pair_name,
+seqname = fwd_df$seqnames[i],
+product_start = product_start,
+product_end = product_end,
+product_size_with_primers = product_size_with_primers,
+amplicon_size_no_primers = amplicon_size_no_primers,
+forward_start = fwd_df$start[i],
+forward_end = fwd_df$end[i],
+reverse_start = rev_df$start[j],
+reverse_end = rev_df$end[j],
+stringsAsFactors = FALSE
+))
+}
+}
+}
+if (nrow(products) == 0) {
+message(sprintf("No valid PCR products found for primer pair: %s", pair_name))
+next
+}
+results <- rbind(results, products)
+}
+#!/usr/bin/env Rscript
+# 1. Libraries ------------------------------------------------------------
+suppressMessages({
+library(argparse)
+library(readxl)
+library(dplyr)
+})
+# 2. Create parser --------------------------------------------------------
+parser <- ArgumentParser(description = "Filter Excel data to select samples
+for TSI retraining output CSV + TXT")
+#!/usr/bin/env Rscript
+# 1. Libraries ------------------------------------------------------------
+suppressMessages({
+library(argparse)
+library(readxl)
+library(dplyr)
+})
+# 2. Create parser --------------------------------------------------------
+parser <- ArgumentParser(description = "Filter Excel data to select samples
+for TSI retraining output CSV + TXT")
+# 1. Libraries ------------------------------------------------------------
+suppressMessages({
+library(argparse)
+library(readxl)
+library(dplyr)
+})
+# 2. Create parser --------------------------------------------------------
+parser <- ArgumentParser(description = "Filter Excel data to select samples
+for TSI retraining output CSV + TXT")
+# 1. Libraries ------------------------------------------------------------
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(psych)
+library(ggpmisc)
+library(greekLetters)
+library(openxlsx)
+### Seroconvertor samples (singles) ###
+serocovertor_df <- read_excel("data/hiv_phylotsi_validation.xlsx",sheet = "Singles_hivtime_v2")
+head(serocovertor_df)
+nrow(serocovertor_df)
+### Seroconvertor samples (serology) ###
+seroconvertor_serology_df <- read_excel("data/Rezenz-Seq_valide_SK_20211021_KM.xlsx",sheet = "serology")
+head(seroconvertor_serology_df)
+nrow(seroconvertor_serology_df)
+beehive_df <- read_excel("data/hiv_phylotsi_validation.xlsx",sheet = "Beehive")
+head(beehive_df)
+nrow(beehive_df)
+# 3. Add to seroconvertor table 2 columns from serology table -------------
+seroconvertor_df <- serocovertor_df |>
+left_join(
+seroconvertor_serology_df |>
+select(scount, elisa_sum_bed, biorad_avidity), by = "scount")
+# 4. Select useful columns from seroconvertor df  -------------------------
+seroconvertor_df <- seroconvertor_df |>
+select(scount, sample_number, first_or_followup, duration_of_infection_days,
+subtype_prrt, se_vl_zu_blut_dat, se_vl_zu_data_next, multiplicity_of_infection,
+reads_raw_mln, reads_final_mln, protocol, elisa_sum_bed, biorad_avidity,
+pol_coverage, gag_coverage, subtype_kallisto, file_size_mb_r1, file_size_mb_r2,
+file_name, gap_pol, gap_pol_inf, gap_gag, gap_gag_inf, single_hivtime_v2,
+dual_all_genes, comments) |>
+mutate(project = "seroconvertor")
+# 5. Select useful columns from BEEHIVE df --------------------------------
+beehive_df <- beehive_df |>
+select(scount, sample_number, first_or_followup, duration_of_infection_days,
+subtype_prrt, se_vl_zu_blut_dat, se_vl_zu_data_next, multiplicity_of_infection,
+reads_raw_mln, reads_final_mln,
+pol_coverage, gag_coverage, subtype_kallisto, file_size_mb_r1, file_size_mb_r2,
+file_name, gap_pol, gap_pol_inf, gap_gag, gap_gag_inf, single_hivtime_v2,
+dual_all_genes, comments) |>
+mutate(protocol = NA, elisa_sum_bed = NA,  biorad_avidity = NA, project = "beehive") |>
+select(all_of(colnames(seroconvertor_df)))
+# 6 Combine Seroconvertor and BEEHIVE tables ------------------------------
+full_df <- bind_rows(seroconvertor_df, beehive_df)
+# 7. Apply some filters to the combined table -----------------------------
+full_filtered_df <- full_df |>
+filter(!protocol %in% c(paste0("FL", seq(1:9)))) |>
+filter(comments != "rubbish" | is.na(comments)) |>
+rename(known_tsi_days = duration_of_infection_days,
+viral_load_frist = se_vl_zu_blut_dat,
+viral_load_next = se_vl_zu_data_next,
+multiplicity = multiplicity_of_infection,
+pol_cov = pol_coverage,
+gag_cov = gag_coverage,
+pol_gap = gap_pol,
+gag_gap = gap_gag,
+gag_gap_info = gap_gag_inf,
+pol_gap_info = gap_pol_inf,
+est_tsi_months = single_hivtime_v2,
+multi_all_genes = dual_all_genes,
+comment = comments) |>
+mutate(known_tsi_months = known_tsi_days / 30) |>
+mutate(known_tsi_years = known_tsi_days / 365) |>
+# Combine viral load from two columns
+mutate(viral_load = if_else(is.na(viral_load_frist),
+viral_load_next, viral_load_frist)) |>
+arrange(scount)
+colnames(full_filtered_df)
+# 8. Write out an output as an .xlsx file ------------------------------------
+write.xlsx(full_filtered_df, file = "outputs/tsi_seroconvertor_beehive.xlsx")
+suppressMessages({
+library(argparse)
+library(readxl)
+library(dplyr)
+})
+parser <- ArgumentParser(description = "Filter Excel data to select samples
+for TSI retraining output CSV + TXT")
+parser$add_argument("-i", "--input", required = TRUE,
+help = "Input Excel file (.xlsx)")
+parser$add_argument("-s", "--sheet", default = "1",
+help = "Excel sheet name or number (default: 1)")
+parser$add_argument("-c", "--output-csv", required = TRUE,
+help = "Output filtered CSV file")
+parser$add_argument("-t", "--output-txt", required = TRUE,
+help = "Output TXT file with scount values")
+args <- parser$parse_args()
+# Convert sheet to numeric if possible
+sheet_arg <- suppressWarnings(as.numeric(args$sheet))
+if (is.na(sheet_arg)) sheet_arg <- args$sheet
+filter_excel_data <- function(input_file, output_csv, output_txt, sheet = 1) {
+df <- read_excel(input_file, sheet = sheet)
+cols_to_select <- c("scount", "project", "known_tsi_days",
+"known_tsi_months", "est_tsi_months",
+"known_tsi_years", "sample_number",
+"first_or_followup","viral_load",
+"subtype_prrt", "subtype_kallisto",
+"multiplicity", "multi_all_genes",
+"elisa_sum_bed", "biorad_avidity",
+"protocol", "file_name",
+"file_size_mb_r1", "file_size_mb_r2",
+"reads_raw_mln", "reads_final_mln",
+"pol_gap", "pol_gap_info", "pol_cov",
+"gag_gap", "gag_gap_info", "gag_cov",
+"comment")
+df_selected <- df |>  select(all_of(cols_to_select))
+# Exclude samples with low coverage or with gaps in either pol or gag regions
+# coverage by phyloscanner ( > 31.62 )
+# multiplicity by phyloscanner ( visual inspections, selected if not all genes involved )
+df_filtered <- df_selected |>
+filter(multi_all_genes != "yes",
+pol_gap != "yes", pol_cov != "uneven",
+gag_gap != "yes", gag_cov != "uneven") |>
+arrange(scount)
+write.csv(df_filtered, output_csv, row.names = FALSE)
+writeLines(df_filtered$scount, con = output_txt)
+}
+# 4. Call the function with parsed arguments ------------------------------
+filter_excel_data(args$input, args$output_csv, args$output_txt, sheet_arg)
+install.packages("argparse")

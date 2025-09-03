@@ -1,0 +1,101 @@
+
+# 1. Libraries ------------------------------------------------------------
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(psych)
+library(ggpmisc)
+library(greekLetters)
+library(openxlsx)
+
+# 2. Export dataframe -----------------------------------------------------
+
+### Seroconverter samples (singles) ###
+serocoverter_df <- read_excel("data/hiv_phylotsi_validation.xlsx",sheet = "Singles_hivtime_v2")
+head(serocoverter_df) 
+nrow(serocoverter_df)
+
+### Seroconverter samples (serology) ###
+seroconverter_serology_df <- read_excel("data/Rezenz-Seq_valide_SK_20211021_KM.xlsx",sheet = "serology")
+head(seroconverter_serology_df) 
+nrow(seroconverter_serology_df)
+
+### BEEHIVE samples (singles) ###
+
+beehive_df <- read_excel("data/hiv_phylotsi_validation.xlsx",sheet = "Beehive")
+head(beehive_df) 
+nrow(beehive_df)
+
+
+
+# 3. Add to seroconvertor table 2 columns from serology table -------------
+seroconverter_df <- serocoverter_df |> 
+  left_join(
+    seroconverter_serology_df |> 
+      select(scount, elisa_sum_bed, biorad_avidity), by = "scount")
+
+
+
+# 4. Select useful columns from seroconvertor df  -------------------------
+seroconverter_df <- seroconverter_df |>
+  select(scount, sample_number, first_or_followup, duration_of_infection_days,
+         subtype_prrt, se_vl_zu_blut_dat, se_vl_zu_data_next, multiplicity_of_infection,
+         reads_raw_mln, reads_final_mln, protocol, elisa_sum_bed, biorad_avidity,
+         pol_coverage, gag_coverage, subtype_kallisto, file_size_mb_r1, file_size_mb_r2,
+         file_name, gap_pol, gap_pol_inf, gap_gag, gap_gag_inf, single_hivtime_v2,
+         dual_all_genes, comments) |> 
+  mutate(project = "seroconverter")
+
+
+
+# 5. Select useful columns from BEEHIVE df --------------------------------
+beehive_df <- beehive_df |>
+  select(scount, sample_number, first_or_followup, duration_of_infection_days,
+         subtype_prrt, se_vl_zu_blut_dat, se_vl_zu_data_next, multiplicity_of_infection,
+         reads_raw_mln, reads_final_mln,
+         pol_coverage, gag_coverage, subtype_kallisto, file_size_mb_r1, file_size_mb_r2,
+         file_name, gap_pol, gap_pol_inf, gap_gag, gap_gag_inf, single_hivtime_v2,
+         dual_all_genes, comments) |> 
+  mutate(protocol = NA, elisa_sum_bed = NA,  biorad_avidity = NA, project = "beehive") |> 
+  select(all_of(colnames(seroconverter_df)))
+
+
+
+# 6 Combine Seroconvertor and BEEHIVE tables ------------------------------
+full_df <- bind_rows(seroconverter_df, beehive_df) 
+
+
+# 7. Apply some filters to the combined table -----------------------------
+full_filtered_df <- full_df |> 
+  filter(!protocol %in% c(paste0("FL", seq(1:9)))) |> 
+  filter(comments != "rubbish" | is.na(comments)) |> 
+  rename(known_tsi_days = duration_of_infection_days,
+         viral_load_frist = se_vl_zu_blut_dat,
+         viral_load_next = se_vl_zu_data_next,
+         multiplicity = multiplicity_of_infection,
+         pol_cov = pol_coverage,
+         gag_cov = gag_coverage,
+         pol_gap = gap_pol,
+         gag_gap = gap_gag,
+         gag_gap_info = gap_gag_inf,
+         pol_gap_info = gap_pol_inf,
+         est_tsi_months = single_hivtime_v2,
+         multi_all_genes = dual_all_genes,
+         comment = comments) |> 
+  mutate(known_tsi_months = known_tsi_days / 30) |> 
+  mutate(known_tsi_years = known_tsi_days / 365) |> 
+  # Combine viral load from two columns
+  mutate(viral_load = if_else(is.na(viral_load_frist), 
+                                    viral_load_next, viral_load_frist)) |> 
+  arrange(scount)
+
+
+
+colnames(full_filtered_df)
+
+# 8. Write out an output as an .xlsx file ------------------------------------
+write.xlsx(full_filtered_df, file = "outputs/tsi_seroconverter_beehive.xlsx")
+
+
+

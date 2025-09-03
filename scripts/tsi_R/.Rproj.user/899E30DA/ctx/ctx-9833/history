@@ -1,0 +1,36 @@
+#!/usr/bin/env Rscript
+# 1. Libraries ------------------------------------------------------------
+suppressMessages({
+library(argparse)
+library(readxl)
+library(dplyr)
+})
+# 2. Create parser --------------------------------------------------------
+parser <- ArgumentParser(description = "Filter Excel data to select samples
+for TSI retraining output CSV + TXT")
+#!/usr/bin/env Rscript
+# 1. Libraries ------------------------------------------------------------
+suppressMessages({
+library(argparse)
+library(readxl)
+library(dplyr)
+})
+# 2. Create parser --------------------------------------------------------
+parser <- ArgumentParser(description = "Filter Excel data to select samples
+for TSI retraining output CSV + TXT")
+suppressMessages({
+library(argparse)
+library(readxl)
+library(dplyr)
+})
+parser <- ArgumentParser(description = "Filter Excel data to select samples
+for TSI retraining output CSV + TXT")
+ls
+suppressMessages({
+library(argparse)
+library(readxl)
+library(dplyr)
+})
+parser <- ArgumentParser(description = "Filter Excel data to select samples
+for TSI retraining output CSV + TXT")
+install.packages("argparse")
