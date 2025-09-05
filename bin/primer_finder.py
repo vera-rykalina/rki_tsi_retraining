@@ -63,7 +63,7 @@ def find_all_matches(primer_seq, ref_seq, max_mismatches=1):
             matches.append((i + 1, i + primer_len))  # 1-based coords
     return matches
 
-# Updated function to handle multiple matches and valid pairings with proper constraints
+# Updated function to handle multiple matches and valid pairings without restrictions
 def find_primer_positions_approx(ref_genome, primer_pairs, max_mismatches=1):
     ref_seq = ref_genome.upper()
     results = []
@@ -90,10 +90,6 @@ def find_primer_positions_approx(ref_genome, primer_pairs, max_mismatches=1):
             for rev_start, rev_end in rev_matches:
                 # Ensure that the antisense primer comes after the sense primer in the genome
                 if rev_start > fwd_end:
-                    # Ensure the antisense primer is not at an invalid position (too early)
-                    if rev_start < len(ref_seq) // 3:  # Reject early matches (e.g., at the beginning)
-                        continue
-
                     product_start = fwd_end + 1
                     product_end = rev_start - 1
 
