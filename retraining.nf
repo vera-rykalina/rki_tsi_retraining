@@ -6,8 +6,17 @@ nextflow.enable.dsl = 2
 if (!params.outdir) {
   error "Missing output directory, use [--outdir]"
 }
+
 if (!params.dataset) {
   error "Missing input dataset file, use [--dataset]"
+}
+
+if (!params.primers) {
+  error "Missing input primers file, use [--primers]"
+}
+
+if (!params.modelname) {
+  error "Missing model name (e.g. IGS, SK, etc), use [--modelname]"
 }
 
 
@@ -284,25 +293,22 @@ process FEATURE_SELECTION_REPORTS {
     path retraining_df
 
   output:
-    path "features_without_vl.csv"
-    path "features_with_vl.csv"
-    path "features.txt", emit: Txt
+    path "reports/*.csv"
+    path "reports/*.txt", emit: Txt
 
     
   script:
     """
     feature_selection.py \
      --input ${retraining_df} \
-     --output-csv-with-vl features_with_vl.csv \
-     --output-csv-without-vl features_without_vl.csv \
-     --output-txt features.txt \
+     --output reports \
      --amplicons
     
     """
   }
 
 process TRAINING {
-  label "medium"
+  label "low"
   conda "${projectDir}/envs/phylo_tsi.yml"
   publishDir "${params.outdir}/13_training_outputs", mode: "copy", overwrite: true
   debug true
@@ -317,7 +323,7 @@ process TRAINING {
   output:
     path "model_${modelname}"
     path "metric.csv"
-    
+
   script:
     """
     training.py \
