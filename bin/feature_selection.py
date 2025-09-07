@@ -1,165 +1,154 @@
 #!/usr/bin/env python3
 
-import argparse
+import argparse, os
 import pandas as pd
 import numpy as np
+from itertools import combinations
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.impute import KNNImputer
-from itertools import combinations
+from sklearn.model_selection import GridSearchCV, train_test_split
 
 def loginfo(msg):
     print(msg)
 
 def _impute_knn(X, k=3):
-    ''' Use k nearest rows which have a feature to fill in each row's missing features. '''
     if np.isnan(X).sum() == 0:
-        loginfo('No missing data to impute, continuing.')
+        loginfo("No missing data; skipping imputation.")
         return X
+    loginfo(f"Imputing {np.isnan(X).sum()} missing values with {k}-NN.")
+    return KNNImputer(n_neighbors=k).fit_transform(X)
 
-    nm = (np.isnan(X).sum(axis=1) != 0).sum()
-    loginfo(f'Using KNN ({k} nearest neighbours) to impute {np.isnan(X).sum()} missing values ({nm} sample{"s" if nm > 1 else ""})')
-
-    # Show where missing values are (row and column indices)
-    rows, cols = np.where(np.isnan(X))
-    unique_rows = np.unique(rows)
-    unique_cols = np.unique(cols)
-    loginfo(f'Missing data found at rows: {unique_rows.tolist()} and columns indexes: {unique_cols.tolist()}')
-
-    imputer = KNNImputer(n_neighbors=k)
-    X_knn = imputer.fit_transform(X)
-    return X_knn
-
-def evaluate_combos(df, features, target_col, include_vl=False, n_estimators_list=[100, 200, 300]):
+def evaluate_combos(df, base_features, include_flags=None, target_col='known_tsi_years'):
     results = []
+    features = base_features.copy()
+    if include_flags:
+        for flag in include_flags:
+            if flag in df.columns and flag not in features:
+                features.append(flag)
 
-    if include_vl and 'viral_load' not in features and 'viral_load' in df.columns:
-        features = features + ['viral_load']
+    # Impute once on all features combined
+    X_full_imputed = _impute_knn(df[features].values)
 
-    max_feats = min(5, len(features))
-    mandatory_feats = ['is_mrc']
+    y_full = np.sqrt(df[target_col].values)  # Keep target in sqrt space
 
-    if 'is_mrc' not in df.columns:
-        raise ValueError("'is_mrc' column must be present in dataframe before evaluating")
+    for size in range(1, min(8, len(features)) + 1):
+        for combo in combinations(features, size):
+            idxs = [features.index(f) for f in combo]
+            X_full = X_full_imputed[:, idxs]
 
-    optional_feats = [f for f in features if f not in mandatory_feats]
+            if X_full.shape[1] == 0:
+                loginfo(f"Skipping combo: {combo} (empty after imputation)")
+                continue
 
-    for size in range(1, max_feats + 1):
-        for combo in combinations(optional_feats, size):
-            combo_with_mand = tuple(mandatory_feats + list(combo))
-            X_sub = df[list(combo_with_mand)].values
+            # Split once per combo into train/validation sets (in sqrt space)
+            X_train, X_valid, y_train, y_valid = train_test_split(
+                X_full, y_full, test_size=0.2, random_state=42
+            )
 
-            X_imputed = _impute_knn(X_sub)
-            y = np.sqrt(df[target_col].values)
+            rf = RandomForestRegressor(random_state=42, n_jobs=8)
+            param_grid = {
+                'n_estimators': [100, 200],
+                'max_depth': [5, 10, 20, None],
+                'min_samples_split': [2, 5, 10]
+            }
 
-            for n_estimators in n_estimators_list:
-                rf = RandomForestRegressor(n_estimators=n_estimators, oob_score=True, random_state=42)
-                try:
-                    rf.fit(X_imputed, y)
-                except ValueError as e:
-                    loginfo(f"Skipping combo {combo_with_mand} with n_estimators={n_estimators} due to error: {e}")
-                    continue
+            grid = GridSearchCV(rf, param_grid, cv=10, scoring='neg_mean_absolute_error', n_jobs=8)
+            try:
+                grid.fit(X_train, y_train)
+            except Exception as e:
+                loginfo(f"Error fitting combo {combo}: {e}")
+                continue
 
-                # OOB prediction and outlier detection
-                oob_preds = rf.oob_prediction_
-                errors = np.abs(y - oob_preds)
+            best_params = grid.best_params_
 
-                # Detecting outliers based on the errors
-                top_n = 5
-                outlier_indices = np.argsort(errors)[-top_n:][::-1]
-                outlier_info = [(idx, errors[idx]) for idx in outlier_indices]
+            # Retrain best model on train with OOB enabled
+            rf_best = RandomForestRegressor(
+                random_state=42,
+                n_jobs=8,
+                oob_score=True,
+                **best_params
+            )
+            rf_best.fit(X_train, y_train)
 
-                # Track outlier categories: mild, moderate, extreme
-                mild_threshold = np.percentile(errors, 75)
-                moderate_threshold = np.percentile(errors, 90)
-                extreme_threshold = np.percentile(errors, 95)
+            # Evaluate validation MAE in original linear scale by squaring predictions and targets
+            val_pred = rf_best.predict(X_valid)
+            val_mae = np.mean(np.abs((y_valid**2) - (val_pred**2)))  # MAE on linear scale
 
-                outlier_categories = {
-                    'mild': [(idx, err) for idx, err in zip(outlier_indices, errors[outlier_indices]) if err < mild_threshold],
-                    'moderate': [(idx, err) for idx, err in zip(outlier_indices, errors[outlier_indices]) if mild_threshold <= err < moderate_threshold],
-                    'extreme': [(idx, err) for idx, err in zip(outlier_indices, errors[outlier_indices]) if err >= extreme_threshold]
-                }
+            results.append({
+                'features': combo,
+                'n_estimators': best_params['n_estimators'],
+                'oob_score': rf_best.oob_score_,
+                'val_mae': val_mae,
+                'best_params': best_params
+            })
 
-                loginfo(f"Outliers for combo {combo_with_mand} with n_estimators={n_estimators}:")
-                loginfo(f"Mild: {outlier_categories['mild']}")
-                loginfo(f"Moderate: {outlier_categories['moderate']}")
-                loginfo(f"Extreme: {outlier_categories['extreme']}")
-
-                # Feature importance
-                feature_importance = rf.feature_importances_
-
-                results.append({
-                    'features': combo_with_mand,
-                    'num_features': len(combo_with_mand),
-                    'n_estimators': n_estimators,
-                    'oob_score': rf.oob_score_,
-                    'outliers': outlier_info,
-                    'feature_importance': feature_importance.tolist()
-                })
     return results
 
-def save_csv_report(results, output_csv):
-    """Save top 10 combos sorted by oob_score descending to CSV."""
-    sorted_res = sorted(results, key=lambda x: x['oob_score'], reverse=True)[:10]
-    rows = []
-    for r in sorted_res:
-        rows.append({
-            'num_features': r['num_features'],
-            'n_estimators': r['n_estimators'],
-            'oob_score': r['oob_score'],
-            'feature_names': ','.join(r['features']),
-            'feature_importance': ','.join(map(str, r['feature_importance']))
-        })
-    df_out = pd.DataFrame(rows)
-    df_out.to_csv(output_csv, index=False)
+def save_csv(results, outdir, label):
+    os.makedirs(outdir, exist_ok=True)
+    df_out = pd.DataFrame({
+        'num_features': [len(r['features']) for r in results],
+        'n_estimators': [r['n_estimators'] for r in results],
+        'oob_score': [r['oob_score'] for r in results],
+        'val_mae': [r['val_mae'] for r in results],
+        'features': [','.join(r['features']) for r in results],
+        'best_params': [r['best_params'] for r in results]
+    })
+    # Sort by highest OOB score, then lowest val_mae
+    df_top = df_out.sort_values(['oob_score', 'val_mae'], ascending=[False, True]).head(10)
+    path = os.path.join(outdir, f"top10_{label}.csv")
+    df_top.to_csv(path, index=False)
+    return path
 
-def save_txt_report(results, output_txt):
-    """Save best combo WITHOUT viral_load as txt (only feature names, no header)."""
-    filtered = [r for r in results if 'viral_load' not in r['features']]
-    if not filtered:
-        loginfo("No feature combos found without viral_load for TXT report.")
-        return
-    best = max(filtered, key=lambda x: x['oob_score'])
-    with open(output_txt, 'w') as f:
-        f.write('\n'.join(best['features']))
+def save_txt_best(results, outdir, filename):
+    if not results:
+        loginfo(f"No combos available for TXT output: {filename}")
+        return None
+    # Pick best combo by OOB score first, then val_mae if tie
+    best = max(results, key=lambda r: (r['oob_score'], -r['val_mae']))
+    path = os.path.join(outdir, filename)
+    with open(path, 'w') as f:
+        for feat in best['features']:
+            f.write(f"{feat}\n")
+    return path
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--input', required=True, help='Input CSV file')
-    parser.add_argument('--output-csv-with-vl', required=True, help='Output CSV file for top combos WITH viral_load')
-    parser.add_argument('--output-csv-without-vl', required=True, help='Output CSV file for top combos WITHOUT viral_load')
-    parser.add_argument('--output-txt', required=True, help='Output TXT file for best combo without viral_load')
-    parser.add_argument('--amplicons', action='store_true', help='Set is_mrc=1 if data are amplicons, else 0')
+    parser.add_argument('-i', '--input', required=True)
+    parser.add_argument('-o', '--output', required=True)
+    parser.add_argument('--amplicons', action='store_true')  # Still accepted, but no longer used
     args = parser.parse_args()
 
     df = pd.read_csv(args.input)
+    if 'known_tsi_years' not in df:
+        raise ValueError("Missing 'known_tsi_years' column.")
 
-    # Preprocess viral_load to log10(viral_load + 1)
     if 'viral_load' in df.columns:
         df['viral_load'] = np.log10(df['viral_load'] + 1)
 
-    target_col = 'known_tsi_years'
-    if target_col not in df.columns:
-        raise ValueError(f"Input CSV must contain '{target_col}' column")
+    exclude_cols = {'sample_id', 'host.id', 'known_tsi_years', 'viral_load', 'is_mrc'}
+    # Removed 'dual_' from blacklist to include those features
+    blacklist = ['genome_', 'gp120_', 'gp41_']
+    base_features = [
+        c for c in df.columns
+        if c not in exclude_cols and not any(c.startswith(pref) for pref in blacklist)
+    ]
 
-    exclude_prefixes = ['gp41_', 'gp120_', 'genome_']
-    exclude_cols = ['sample_id', 'host.id', target_col]
+    outdir = args.output
 
-    features_all = [c for c in df.columns
-                    if c not in exclude_cols
-                    and not any(c.startswith(pref) for pref in exclude_prefixes)]
+    # 1. Base only
+    res_base = evaluate_combos(df, base_features)
+    csv_base = save_csv(res_base, outdir, 'base_only')
+    txt_base = save_txt_best(res_base, outdir, 'best_features_base_only.txt')
 
-    df['is_mrc'] = int(args.amplicons)
+    # 2. Base + viral_load
+    res_vl = evaluate_combos(df, base_features, include_flags=['viral_load'])
+    csv_vl = save_csv(res_vl, outdir, 'with_viral_load')
 
-    features_without_vl = [f for f in features_all if f != 'viral_load']
-
-    results_without_vl = evaluate_combos(df, features_without_vl, target_col, include_vl=False,
-                                        n_estimators_list=[100, 200, 300])
-    save_csv_report(results_without_vl, args.output_csv_without_vl)
-    save_txt_report(results_without_vl, args.output_txt)
-
-    results_with_vl = evaluate_combos(df, features_without_vl, target_col, include_vl=True,
-                                     n_estimators_list=[100, 200, 300])
-    save_csv_report(results_with_vl, args.output_csv_with_vl)
+    loginfo("Saved files:")
+    for path in [csv_base, txt_base, csv_vl]:
+        if path:
+            loginfo(f" • {path}")
 
 if __name__ == '__main__':
     main()
