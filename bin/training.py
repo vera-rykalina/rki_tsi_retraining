@@ -53,7 +53,6 @@ def train_model(input_file, features_file, output_folder, report_folder,
 
     data_for_model_imp, scaler = prepare_data(df, features_list, is_amplicons=amplicons)
 
-    # Nested CV setup
     outer_cv = KFold(n_splits=5, shuffle=True, random_state=42)
     inner_cv = KFold(n_splits=5, shuffle=True, random_state=42)
 
