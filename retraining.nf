@@ -2,6 +2,13 @@
 
 nextflow.enable.dsl = 2
 
+
+// help message
+params.help = false
+
+if (params.help) { exit 0, helpMSG() }
+
+
 // Check required parameters
 if (!params.outdir) {
   error "Missing output directory, use [--outdir]"
@@ -18,6 +25,64 @@ if (!params.primers) {
 if (!params.modelname) {
   error "Missing model name (e.g. IGS, SK, etc), use [--modelname]"
 }
+
+
+params.profile = null
+if (params.profile) {
+    exit 1, "--profile is WRONG use -profile" }
+
+
+
+def helpMSG() {
+    c_green = "\033[0;32m";
+    c_reset = "\033[0m";
+    c_yellow = "\033[0;33m";
+    c_blue = "\033[0;34m";
+    c_red = "\u001B[31m";
+    c_dim = "\033[2m";
+    log.info """
+  
+
+    ${c_blue}TSI Remodling Pipeline${c_blue}
+    ====================================================
+    Author: Vera Rykalina
+    ${c_blue}Affiliation: Robert Koch Institute${c_blue}
+    Created: 22 August 2025
+    ====================================================
+  
+
+    ${c_yellow}Usage examples:${c_reset}
+    nextflow retraining.nf \
+                --dataset inputs/tsi_seroconverter_beehive.xlsx \
+                --primers  -profile rki_slurm,rki_conda \
+                --modelname SK \
+                --oudir MyModel \
+                -c retraining.config \ 
+                -resume
+   
+    
+    ${c_green}Required settings:${c_reset}  
+    
+    --dataset                         Path to a .xlsx annotated FL data [No change needed: use inputs/tsi_seroconverter_beehive.xlsx!]
+    
+    --outdir                          Name for an output directory, e.g. MyModel, Results etc. [string]
+
+    --primers                         Path of a FASTA file containing the primer sequences (see examples in the input folder)
+
+    --modelname                       Name for a model folder, e.g. SK or IGS [default: IGS]
+
+    ${c_green}Optional input settings:${c_reset}
+     
+    --sheet                           Sheet in the .xlsx dataset [default: 1]
+
+    --mafs_patstats_search_dir        Path to the folder where FL analysed data are [default: FG18_HIV_Pipelines/HIV-phyloTSI/HIVtime_single_full_length_samples_v2/]  
+    
+    -profile                          Sets a profile [default: rki_slurm,rki_conda]
+
+    """
+}
+
+
 
 
 params.sheet = 1
@@ -283,7 +348,7 @@ process GET_RETRAINING_DF {
   }
 
 
-process FEATURE_SELECTION_REPORTS {
+process FEATURE_SELECTION_REPORTS_BASE {
   label "medium"
   conda "${projectDir}/envs/phylo_tsi.yml"
   publishDir "${params.outdir}/12_features_reports", mode: "copy", overwrite: true
@@ -293,22 +358,76 @@ process FEATURE_SELECTION_REPORTS {
     path retraining_df
 
   output:
-    path "reports/*.csv"
-    path "reports/*.txt", emit: Txt
+    path "report_base/top10_base.csv"
+    path "report_base/best_features_base.txt", emit: Txt
 
     
   script:
     """
     feature_selection.py \
      --input ${retraining_df} \
-     --output reports \
+     --output report_base \
      --amplicons
     
     """
   }
 
+
+process FEATURE_SELECTION_REPORTS_BASE_MRC {
+  label "high"
+  conda "${projectDir}/envs/phylo_tsi.yml"
+  publishDir "${params.outdir}/12_features_reports", mode: "copy", overwrite: true
+  //debug true
+
+  input:
+    path retraining_df
+
+  output:
+    path "report_base_mrc/top10_base_mrc.csv"
+    path "report_base_mrc/best_features_base_mrc.txt", emit: Txt
+
+
+    
+  script:
+    """
+    feature_selection.py \
+     --input ${retraining_df} \
+     --output report_base_mrc \
+     --amplicons \
+     --include_is_mrc
+    
+    """
+  }
+
+
+
+  process FEATURE_SELECTION_REPORTS_BASE_VL {
+  label "high"
+  conda "${projectDir}/envs/phylo_tsi.yml"
+  publishDir "${params.outdir}/12_features_reports", mode: "copy", overwrite: true
+  //debug true
+
+  input:
+    path retraining_df
+
+  output:
+    path "report_base_vl/top10_base_vl.csv"
+    path "report_base_vl/best_features_base_vl.txt", emit: Txt
+
+    
+  script:
+    """
+    feature_selection.py \
+     --input ${retraining_df} \
+     --output report_base_vl \
+     --amplicons \
+     --include_viral_load
+    
+    """
+  }
+
 process TRAINING {
-  label "low"
+  label "high"
   conda "${projectDir}/envs/phylo_tsi.yml"
   publishDir "${params.outdir}/13_training_outputs", mode: "copy", overwrite: true
   debug true
@@ -322,7 +441,7 @@ process TRAINING {
 
   output:
     path "model_${modelname}"
-    path "metric.csv"
+    path "reports"
 
   script:
     """
@@ -330,7 +449,7 @@ process TRAINING {
      --input ${retraining_df} \
      --features ${features_list} \
      --modeldir model_${modelname} \
-     --report metric.csv \
+     --report reports \
      --modelname ${modelname} \
      --amplicons    
 
@@ -363,8 +482,10 @@ workflow {
   // remodelling
   ch_all_features_means = CALCULATE_MEANS ( params.refdata_tsi_hxb2, ch_maf_pos_masked, ch_patstats_pos_masked )
   ch_retraining_df = GET_RETRAINING_DF ( ch_samples.Csv, ch_all_features_means )
-  ch_features = FEATURE_SELECTION_REPORTS ( ch_retraining_df )
-  ch_model = TRAINING ( ch_masking_regions, ch_refdata, ch_retraining_df, ch_features.Txt, params.modelname )
+  ch_base_mrc = FEATURE_SELECTION_REPORTS_BASE_MRC (ch_retraining_df )
+  ch_base_vl = FEATURE_SELECTION_REPORTS_BASE_VL (ch_retraining_df )
+  ch_base = FEATURE_SELECTION_REPORTS_BASE ( ch_retraining_df )
+  ch_model = TRAINING ( ch_masking_regions, ch_refdata, ch_retraining_df, ch_base_mrc.Txt, params.modelname )
 }
 
 
