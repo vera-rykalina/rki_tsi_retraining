@@ -3,9 +3,10 @@
 import pandas as pd
 import argparse
 import sys
+import numpy as np
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Merge metadata with features table for retraining step 2, keep only means, viral_load, and known_tsi_years")
+    parser = argparse.ArgumentParser(description="Merge metadata with features table for retraining step 2, keep only means, viral_load (log10 transformed), and known_tsi_years")
     parser.add_argument("--metadata", "-m", required=True, help="CSV file with metadata (includes 'scount', 'viral_load', 'known_tsi_years')")
     parser.add_argument("--features", "-f", required=True, help="CSV file with features (includes 'host.id' and mean features)")
     parser.add_argument("--output", "-o", required=True, help="Output CSV filename for merged and filtered table")
@@ -37,6 +38,9 @@ def main():
     for col in required_cols:
         if col not in merged.columns:
             sys.exit(f"Error: '{col}' column missing in merged dataframe.")
+
+    # Log-transform viral_load values in-place (handle missing values)
+    merged['viral_load'] = merged['viral_load'].apply(lambda x: np.log10(x + 1) if pd.notnull(x) else x)
 
     # Select feature columns from feat_df except 'host.id'
     feature_cols = [col for col in feat_df.columns if col != 'host.id']
