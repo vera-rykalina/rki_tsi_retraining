@@ -1,0 +1,5 @@
+pair,sense_primer_coords,sense_primer_length,antisense_primer_coords,antisense_primer_length,product_coords_excl_primers,product_length_excl_primers,product_coords_incl_primers,product_length_incl_primers
+Pan-1,480-496,17,2385-2407,23,497-2384,1888,480-2407,1928
+Pan-2,1485-1505,21,5037-5058,22,1506-5036,3531,1485-5058,3574
+Pan-3,4783-4805,23,7831-7848,18,4806-7830,3025,4783-7848,3066
+Pan-4,5967-5985,19,9497-9517,21,5986-9496,3511,5967-9517,3551
