@@ -7,6 +7,7 @@ from itertools import combinations
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.impute import KNNImputer
 from sklearn.model_selection import GridSearchCV, train_test_split
+from sklearn.metrics import r2_score
 
 def loginfo(msg):
     print(msg)
@@ -34,6 +35,14 @@ def evaluate_combos(df, base_features, include_flags=None, target_col='known_tsi
 
     for size in range(1, max_features + 1):  # Up to 8 features max
         for combo in combinations(features, size):
+            # Ensure is_mrc is always in the first position if it exists
+            if 'is_mrc' in features:
+                if 'is_mrc' not in combo:
+                    # skip combos that do not include is_mrc
+                    continue
+                # reorder so that is_mrc is first
+                combo = ('is_mrc',) + tuple(f for f in combo if f != 'is_mrc')
+
             idxs = [features.index(f) for f in combo]
             X_full = X_full_imputed[:, idxs]
 
@@ -73,12 +82,14 @@ def evaluate_combos(df, base_features, include_flags=None, target_col='known_tsi
 
             val_pred = rf_best.predict(X_valid)
             val_mae = np.mean(np.abs((y_valid**2) - (val_pred**2)))  # MAE in original scale
+            val_r2 = r2_score(y_valid**2, val_pred**2)               # R2 in original scale
 
             results.append({
                 'features': combo,
                 'n_estimators': best_params['n_estimators'],
                 'oob_score': rf_best.oob_score_,
                 'val_mae': val_mae,
+                'val_r2': val_r2,
                 'best_params': best_params
             })
 
@@ -91,6 +102,7 @@ def save_csv(results, outdir, label):
         'n_estimators': [r['n_estimators'] for r in results],
         'oob_score': [r['oob_score'] for r in results],
         'val_mae': [r['val_mae'] for r in results],
+        'val_r2': [r['val_r2'] for r in results],
         'features': [','.join(r['features']) for r in results],
         'best_params': [r['best_params'] for r in results]
     })
@@ -130,8 +142,6 @@ def main():
     else:
         df['is_mrc'] = 0
 
-    if 'viral_load' in df.columns:
-        df['viral_load'] = np.log10(df['viral_load'] + 1)
 
     exclude_cols = {'sample_id', 'host.id', 'known_tsi_years', 'viral_load', 'is_mrc'}
     blacklist = ['genome_', 'gp120_', 'gp41_']
