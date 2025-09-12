@@ -69,6 +69,9 @@ def train_model(input_file, features_file, output_folder, report_folder,
 
     preds_all = []
 
+    best_params_list = []
+    best_maes_list = []
+
     fold_num = 1
     for train_idx, test_idx in outer_cv.split(data_for_model_imp):
         loginfo(f"Outer CV fold {fold_num} starting...")
@@ -80,15 +83,20 @@ def train_model(input_file, features_file, output_folder, report_folder,
         grid = GridSearchCV(rf, param_grid, cv=inner_cv, scoring='neg_mean_absolute_error', n_jobs=-1)
         grid.fit(X_train, y_train)
 
+        best_params = grid.best_params_
+        best_score = -grid.best_score_  # neg MAE to positive MAE
+        best_params_list.append(best_params)
+        best_maes_list.append(best_score)
+
         best_rf = grid.best_estimator_
 
-        # Get per-tree predictions for each test sample
+        # Per-tree predictions for test samples
         all_tree_preds = np.array([tree.predict(X_test) for tree in best_rf.estimators_])  # shape: (n_trees, n_samples_test)
 
         # Mean prediction per sample (sqrt scale)
         y_test_pred = np.mean(all_tree_preds, axis=0)
 
-        # Calculate 95% prediction interval in sqrt scale
+        # 95% prediction interval in sqrt scale
         lower_bounds = np.percentile(all_tree_preds, 2.5, axis=0)
         upper_bounds = np.percentile(all_tree_preds, 97.5, axis=0)
 
@@ -127,10 +135,13 @@ def train_model(input_file, features_file, output_folder, report_folder,
 
     loginfo(f"Nested CV results: MAE={mae_mean:.4f}±{mae_std:.4f}, RMSE={rmse_mean:.4f}±{rmse_std:.4f}, R2={r2_mean:.4f}±{r2_std:.4f}")
 
-    # Retrain final model on full dataset using best parameters from last fold (for simplicity)
-    best_params = grid.best_params_
+    # Pick best params based on aggregated CV MAE
+    best_index = np.argmin(best_maes_list)
+    best_params_agg = best_params_list[best_index]
+    loginfo(f"Best hyperparameters from aggregated CV: {best_params_agg}")
 
-    final_rf = RandomForestRegressor(random_state=42, n_jobs=-1, **best_params)
+    # Retrain final model on full dataset using aggregated best hyperparameters
+    final_rf = RandomForestRegressor(random_state=42, n_jobs=-1, **best_params_agg)
     final_rf.fit(data_for_model_imp, y)
 
     y_pred_full = final_rf.predict(data_for_model_imp)
@@ -138,9 +149,9 @@ def train_model(input_file, features_file, output_folder, report_folder,
     y_linear = y ** 2
     abs_errors_full = np.abs(y_linear - y_pred_full_linear)
 
-    # Train residuals error model
+    # Train residuals error model (absolute residuals in sqrt scale)
     train_residuals_full = np.abs(y - y_pred_full)
-    err_model = RandomForestRegressor(random_state=42, **best_params)
+    err_model = RandomForestRegressor(random_state=42, **best_params_agg)
     err_model.fit(data_for_model_imp, train_residuals_full)
 
     # Save model components
@@ -176,7 +187,6 @@ def train_model(input_file, features_file, output_folder, report_folder,
     })
 
     full_report_df = pd.concat([summary_metrics, preds_df], ignore_index=True)
-
     full_report_df.to_csv(metrics_path, index=False)
 
     # Plot true vs predicted with identity line
