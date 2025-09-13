@@ -17,7 +17,6 @@ logging.basicConfig(level=logging.INFO)
 loginfo = logging.info
 
 def _impute_knn(X, k=3):
-    '''Use k nearest rows which have a feature to fill in each row's missing features.'''
     if np.isnan(X).sum() == 0:
         loginfo('No missing data to impute, continuing.')
         return X
@@ -27,7 +26,6 @@ def _impute_knn(X, k=3):
     return KNNImputer(n_neighbors=k).fit_transform(X)
 
 def prepare_data(df, features_list, is_amplicons=False):
-    '''Prepare feature matrix for modeling.'''
     seqtype = pd.DataFrame(index=df.index)
     seqtype['is_mrc'] = int(is_amplicons)
     data_for_model = pd.concat((seqtype, df), axis=1)[features_list]
@@ -84,23 +82,18 @@ def train_model(input_file, features_file, output_folder, report_folder,
         grid.fit(X_train, y_train)
 
         best_params = grid.best_params_
-        best_score = -grid.best_score_  # neg MAE to positive MAE
+        best_score = -grid.best_score_
         best_params_list.append(best_params)
         best_maes_list.append(best_score)
 
         best_rf = grid.best_estimator_
 
-        # Per-tree predictions for test samples
-        all_tree_preds = np.array([tree.predict(X_test) for tree in best_rf.estimators_])  # shape: (n_trees, n_samples_test)
+        all_tree_preds = np.array([tree.predict(X_test) for tree in best_rf.estimators_])
 
-        # Mean prediction per sample (sqrt scale)
         y_test_pred = np.mean(all_tree_preds, axis=0)
-
-        # 95% prediction interval in sqrt scale
         lower_bounds = np.percentile(all_tree_preds, 2.5, axis=0)
         upper_bounds = np.percentile(all_tree_preds, 97.5, axis=0)
 
-        # Convert back to original scale
         y_test_pred_linear = y_test_pred ** 2
         y_test_linear = y_test ** 2
         lower_linear = lower_bounds ** 2
@@ -114,7 +107,6 @@ def train_model(input_file, features_file, output_folder, report_folder,
         rmses.append(rmse)
         r2s.append(r2)
 
-        # Save results with intervals for reporting
         for i, idx in enumerate(test_idx):
             preds_all.append({
                 'sample_index': idx,
@@ -128,19 +120,17 @@ def train_model(input_file, features_file, output_folder, report_folder,
         loginfo(f"Fold {fold_num} results: MAE={mae:.4f}, RMSE={rmse:.4f}, R2={r2:.4f}")
         fold_num += 1
 
-    # Aggregate CV results
     mae_mean, mae_std = np.mean(maes), np.std(maes)
     rmse_mean, rmse_std = np.mean(rmses), np.std(rmses)
     r2_mean, r2_std = np.mean(r2s), np.std(r2s)
 
     loginfo(f"Nested CV results: MAE={mae_mean:.4f}±{mae_std:.4f}, RMSE={rmse_mean:.4f}±{rmse_std:.4f}, R2={r2_mean:.4f}±{r2_std:.4f}")
 
-    # Pick best params based on aggregated CV MAE
     best_index = np.argmin(best_maes_list)
     best_params_agg = best_params_list[best_index]
     loginfo(f"Best hyperparameters from aggregated CV: {best_params_agg}")
 
-    # Retrain final model on full dataset using aggregated best hyperparameters
+    # Retrain final model
     final_rf = RandomForestRegressor(random_state=42, n_jobs=-1, **best_params_agg)
     final_rf.fit(data_for_model_imp, y)
 
@@ -149,7 +139,7 @@ def train_model(input_file, features_file, output_folder, report_folder,
     y_linear = y ** 2
     abs_errors_full = np.abs(y_linear - y_pred_full_linear)
 
-    # Train residuals error model (absolute residuals in sqrt scale)
+    # Train residuals model
     train_residuals_full = np.abs(y - y_pred_full)
     err_model = RandomForestRegressor(random_state=42, **best_params_agg)
     err_model.fit(data_for_model_imp, train_residuals_full)
@@ -166,15 +156,13 @@ def train_model(input_file, features_file, output_folder, report_folder,
         for feat in features_list:
             f.write(f"{feat}\n")
 
-    # Prepare report folder and save metrics + plot
+    # Original CV metrics report
     os.makedirs(report_folder, exist_ok=True)
     metrics_path = os.path.join(report_folder, "metrics.csv")
     plot_path = os.path.join(report_folder, "performance_plot.png")
 
-    # Convert preds_all list of dicts to DataFrame sorted by sample index
     preds_df = pd.DataFrame(preds_all).sort_values('sample_index').reset_index(drop=True)
 
-    # Summary metrics dataframe as header lines
     summary_metrics = pd.DataFrame({
         'sample_index': [np.nan]*3,
         'true': ['MAE', 'RMSE', 'R2'],
@@ -189,7 +177,50 @@ def train_model(input_file, features_file, output_folder, report_folder,
     full_report_df = pd.concat([summary_metrics, preds_df], ignore_index=True)
     full_report_df.to_csv(metrics_path, index=False)
 
-    # Plot true vs predicted with identity line
+    # --- Begin addition: retrained metrics CSV ---
+    retrained_metrics_path = os.path.join(report_folder, "retrained_metrics.csv")
+
+    all_tree_preds_full = np.array([tree.predict(data_for_model_imp) for tree in final_rf.estimators_])
+    y_pred_full_mean = np.mean(all_tree_preds_full, axis=0)
+    lower_bounds_full = np.percentile(all_tree_preds_full, 2.5, axis=0)
+    upper_bounds_full = np.percentile(all_tree_preds_full, 97.5, axis=0)
+
+    y_pred_full_linear = y_pred_full_mean ** 2
+    lower_linear_full = lower_bounds_full ** 2
+    upper_linear_full = upper_bounds_full ** 2
+    abs_errors_full = np.abs(y_linear - y_pred_full_linear)
+
+    retrain_preds_all = []
+    for i, idx in enumerate(df.index):
+        retrain_preds_all.append({
+            'sample_index': idx,
+            'true': y_linear[i],
+            'pred': y_pred_full_linear[i],
+            'lower_95': lower_linear_full[i],
+            'upper_95': upper_linear_full[i],
+            'abs_error': abs_errors_full[i]
+        })
+
+    mae_full = mean_absolute_error(y_linear, y_pred_full_linear)
+    rmse_full = np.sqrt(mean_squared_error(y_linear, y_pred_full_linear))
+    r2_full = r2_score(y_linear, y_pred_full_linear)
+
+    retrain_summary_metrics = pd.DataFrame({
+        'sample_index': [np.nan]*3,
+        'true': ['MAE', 'RMSE', 'R2'],
+        'pred': [f"{mae_full:.4f}", f"{rmse_full:.4f}", f"{r2_full:.4f}"],
+        'lower_95': [np.nan]*3,
+        'upper_95': [np.nan]*3,
+        'abs_error': [np.nan]*3
+    })
+
+    retrain_preds_df = pd.DataFrame(retrain_preds_all)
+    retrain_report_df = pd.concat([retrain_summary_metrics, retrain_preds_df], ignore_index=True)
+    retrain_report_df.to_csv(retrained_metrics_path, index=False)
+    loginfo(f"Retrained metrics saved to {retrained_metrics_path}")
+    # --- End addition ---
+
+    # Original plot (full retrained model)
     plt.figure(figsize=(8, 6))
     plt.scatter(y_linear, y_pred_full_linear, alpha=0.7, edgecolors='k')
     plt.plot([y_linear.min(), y_linear.max()], [y_linear.min(), y_linear.max()], 'r--')
