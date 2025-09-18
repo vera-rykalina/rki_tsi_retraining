@@ -3,6 +3,18 @@
 nextflow.enable.dsl = 2
 
 
+/*
+nextflow retraining.nf \
+         -c retraining.config \
+         -profile rki_slurm,rki_conda \
+         --outdir Results \
+         --dataset inputs/tsi_seroconverter_beehive.xlsx \
+         --primers inputs/primers_sk_validation.fasta \
+         --modelname SK \
+         -resume 
+*/
+
+
 // help message
 params.help = false
 
