@@ -89,7 +89,7 @@ def helpMSG() {
 
     --mafs_patstats_search_dir        Path to the folder where FL analysed data are [default: FG18_HIV_Pipelines/HIV-phyloTSI/HIVtime_single_full_length_samples_v2/]  
     
-    -profile                          Sets a profile [default: rki_slurm,rki_conda]
+    -profile                          Sets a profile [rki_slurm,rki_conda]
 
     """
 }
@@ -155,7 +155,7 @@ process SELECT_SAMPLES {
 
 process COPY_SELECT_MAFS {
     label "low"
-    publishDir "${params.outdir}/03_selected_mafs", mode: 'copy', overwrite: true
+    //publishDir "${params.outdir}/selected_mafs", mode: 'copy', overwrite: true
     //debug true
 
     input:
@@ -179,7 +179,7 @@ process COPY_SELECT_MAFS {
 
 process CONCATINATE_MAFS {
   label "low"
-  publishDir "${params.outdir}/04_concatinated_maf", mode: "copy", overwrite: true
+  publishDir "${params.outdir}/03_concatinated_maf", mode: "copy", overwrite: true
   debug true
 
   input:
@@ -198,8 +198,8 @@ process CONCATINATE_MAFS {
 process MAF_MASK_POSITIONS {
   label "low"
   conda "${projectDir}/envs/phylo_tsi.yml"
-  publishDir "${params.outdir}/05_maf_postions_masked", mode: "copy", overwrite: true
-  debug true
+  publishDir "${params.outdir}/04_maf_postions_masked", mode: "copy", overwrite: true
+  //debug true
 
   input:
     path concat_maf
@@ -221,7 +221,7 @@ process MAF_MASK_POSITIONS {
 
 process COPY_SELECT_PATSTATS {
     label "low"
-    publishDir "${params.outdir}/06_selected_patstats", mode: 'copy', overwrite: true
+    //publishDir "${params.outdir}/selected_patstats", mode: 'copy', overwrite: true
     //debug true
 
     input:
@@ -247,8 +247,8 @@ process COPY_SELECT_PATSTATS {
 process REMOVE_PROP_GP {
   label "low"
   conda "${projectDir}/envs/phylo_tsi.yml"
-  publishDir "${params.outdir}/07_cleaned_patstats", mode: "copy", overwrite: true
-  debug true
+  //publishDir "${params.outdir}/cleaned_patstats", mode: "copy", overwrite: true
+  //debug true
 
   input:
     path patstats_csv
@@ -270,8 +270,8 @@ process REMOVE_PROP_GP {
 
 process CONCATINATE_PATSTATS {
   label "low"
-  publishDir "${params.outdir}/08_concatinated_patstats", mode: "copy", overwrite: true
-  debug true
+  publishDir "${params.outdir}/05_concatinated_patstats", mode: "copy", overwrite: true
+  //debug true
 
   input:
     path patstats_csvs
@@ -289,8 +289,8 @@ process CONCATINATE_PATSTATS {
 process PATSTATS_MASK_POSITIONS {
   label "low"
   conda "${projectDir}/envs/phylo_tsi.yml"
-  publishDir "${params.outdir}/09_patstats_postions_masked", mode: "copy", overwrite: true
-  debug true
+  publishDir "${params.outdir}/06_patstats_postions_masked", mode: "copy", overwrite: true
+  //debug true
 
   input:
     path concat_patstats
@@ -312,8 +312,8 @@ process PATSTATS_MASK_POSITIONS {
 process CALCULATE_MEANS {
   label "low"
   conda "${projectDir}/envs/phylo_tsi.yml"
-  publishDir "${params.outdir}/10_all_features_means", mode: "copy", overwrite: true
-  debug true
+  publishDir "${params.outdir}/07_all_features_means", mode: "copy", overwrite: true
+  //debug true
 
   input:
     path refdata_tsi_hxb2
@@ -338,8 +338,8 @@ process CALCULATE_MEANS {
 process GET_RETRAINING_DF {
   label "low"
   conda "${projectDir}/envs/phylo_tsi.yml"
-  publishDir "${params.outdir}/11_metadata_features", mode: "copy", overwrite: true
-  debug true
+  publishDir "${params.outdir}/08_metadata_features", mode: "copy", overwrite: true
+  //debug true
 
   input:
     path metadata_df
@@ -363,7 +363,7 @@ process GET_RETRAINING_DF {
 process FEATURE_SELECTION_REPORTS_BASE {
   label "medium"
   conda "${projectDir}/envs/phylo_tsi.yml"
-  publishDir "${params.outdir}/12_features_reports", mode: "copy", overwrite: true
+  publishDir "${params.outdir}/09_features_reports", mode: "copy", overwrite: true
   //debug true
 
   input:
@@ -388,7 +388,7 @@ process FEATURE_SELECTION_REPORTS_BASE {
 process FEATURE_SELECTION_REPORTS_BASE_MRC {
   label "high"
   conda "${projectDir}/envs/phylo_tsi.yml"
-  publishDir "${params.outdir}/12_features_reports", mode: "copy", overwrite: true
+  publishDir "${params.outdir}/09_features_reports", mode: "copy", overwrite: true
   //debug true
 
   input:
@@ -416,7 +416,7 @@ process FEATURE_SELECTION_REPORTS_BASE_MRC {
   process FEATURE_SELECTION_REPORTS_BASE_VL {
   label "high"
   conda "${projectDir}/envs/phylo_tsi.yml"
-  publishDir "${params.outdir}/12_features_reports", mode: "copy", overwrite: true
+  publishDir "${params.outdir}/09_features_reports", mode: "copy", overwrite: true
   //debug true
 
   input:
@@ -441,8 +441,8 @@ process FEATURE_SELECTION_REPORTS_BASE_MRC {
 process TRAINING {
   label "high"
   conda "${projectDir}/envs/phylo_tsi.yml"
-  publishDir "${params.outdir}/13_training_outputs", mode: "copy", overwrite: true
-  debug true
+  publishDir "${params.outdir}/10_training_outputs", mode: "copy", overwrite: true
+  //debug true
 
   input:
     path refdata_tsi_hxb2
@@ -495,8 +495,8 @@ workflow {
   ch_all_features_means = CALCULATE_MEANS ( params.refdata_tsi_hxb2, ch_maf_pos_masked, ch_patstats_pos_masked )
   ch_retraining_df = GET_RETRAINING_DF ( ch_samples.Csv, ch_all_features_means )
   ch_base_mrc = FEATURE_SELECTION_REPORTS_BASE_MRC (ch_retraining_df )
-  ch_base_vl = FEATURE_SELECTION_REPORTS_BASE_VL (ch_retraining_df )
-  ch_base = FEATURE_SELECTION_REPORTS_BASE ( ch_retraining_df )
+  //ch_base_vl = FEATURE_SELECTION_REPORTS_BASE_VL (ch_retraining_df )
+  //ch_base = FEATURE_SELECTION_REPORTS_BASE ( ch_retraining_df )
   ch_model = TRAINING ( ch_masking_regions, ch_refdata, ch_retraining_df, ch_base_mrc.Txt, params.modelname )
 }
 
