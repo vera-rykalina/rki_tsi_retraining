@@ -385,7 +385,7 @@ process FEATURE_SELECTION_REPORTS_BASE {
   }
 
 
-process FEATURE_SELECTION_REPORTS_BASE_MRC {
+process FEATURE_SELECTION_REPORTS_BASE_AMP {
   label "high"
   conda "${projectDir}/envs/phylo_tsi.yml"
   publishDir "${params.outdir}/09_features_reports", mode: "copy", overwrite: true
@@ -395,8 +395,8 @@ process FEATURE_SELECTION_REPORTS_BASE_MRC {
     path retraining_df
 
   output:
-    path "report_base_mrc/top10_base_mrc.csv"
-    path "report_base_mrc/best_features_base_mrc.txt", emit: Txt
+    path "report_base_mrc/top10_base_amp.csv"
+    path "report_base_mrc/best_features_base_amp.txt", emit: Txt
 
 
     
@@ -404,9 +404,9 @@ process FEATURE_SELECTION_REPORTS_BASE_MRC {
     """
     feature_selection.py \
      --input ${retraining_df} \
-     --output report_base_mrc \
+     --output report_base_amp \
      --amplicons \
-     --include_is_mrc
+     --include_is_amp
     
     """
   }
@@ -494,10 +494,10 @@ workflow {
   // remodelling
   ch_all_features_means = CALCULATE_MEANS ( params.refdata_tsi_hxb2, ch_maf_pos_masked, ch_patstats_pos_masked )
   ch_retraining_df = GET_RETRAINING_DF ( ch_samples.Csv, ch_all_features_means )
-  ch_base_mrc = FEATURE_SELECTION_REPORTS_BASE_MRC (ch_retraining_df )
-  //ch_base_vl = FEATURE_SELECTION_REPORTS_BASE_VL (ch_retraining_df )
-  //ch_base = FEATURE_SELECTION_REPORTS_BASE ( ch_retraining_df )
-  ch_model = TRAINING ( ch_masking_regions, ch_refdata, ch_retraining_df, ch_base_mrc.Txt, params.modelname )
+  ch_base_amp = FEATURE_SELECTION_REPORTS_BASE_AMP (ch_retraining_df )
+  ch_base_vl = FEATURE_SELECTION_REPORTS_BASE_VL (ch_retraining_df )
+  ch_base = FEATURE_SELECTION_REPORTS_BASE ( ch_retraining_df )
+  ch_model = TRAINING ( ch_masking_regions, ch_refdata, ch_retraining_df, ch_base_amp.Txt, params.modelname )
 }
 
 
