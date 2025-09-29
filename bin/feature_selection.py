@@ -35,13 +35,13 @@ def evaluate_combos(df, base_features, include_flags=None, target_col='known_tsi
 
     for size in range(1, max_features + 1):  # Up to 8 features max
         for combo in combinations(features, size):
-            # Ensure is_mrc is always in the first position if it exists
-            if 'is_mrc' in features:
-                if 'is_mrc' not in combo:
-                    # skip combos that do not include is_mrc
+            # Ensure is_amp is always in the first position if it exists
+            if 'is_amp' in features:
+                if 'is_amp' not in combo:
+                    # skip combos that do not include is_amp
                     continue
-                # reorder so that is_mrc is first
-                combo = ('is_mrc',) + tuple(f for f in combo if f != 'is_mrc')
+                # reorder so that is_amp is first
+                combo = ('is_amp',) + tuple(f for f in combo if f != 'is_amp')
 
             idxs = [features.index(f) for f in combo]
             X_full = X_full_imputed[:, idxs]
@@ -127,23 +127,23 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--input', required=True)
     parser.add_argument('-o', '--output', required=True)
-    parser.add_argument('--amplicons', action='store_true', help="Set is_mrc=1 (for compatibility, not used)")
+    parser.add_argument('--amplicons', action='store_true', help="Set is_amp=1")
     parser.add_argument('--include_viral_load', action='store_true', help="Include viral_load as a feature")
-    parser.add_argument('--include_is_mrc', action='store_true', help="Include is_mrc as the first feature")
+    parser.add_argument('--include_is_amp', action='store_true', help="Include is_amp as the first feature")
     args = parser.parse_args()
 
     df = pd.read_csv(args.input)
     if 'known_tsi_years' not in df:
         raise ValueError("Missing 'known_tsi_years' column.")
 
-    # Add is_mrc column dynamically based on --amplicons flag
+    # Add is_amp column dynamically based on --amplicons flag
     if args.amplicons:
-        df['is_mrc'] = 1
+        df['is_amp'] = 1
     else:
-        df['is_mrc'] = 0
+        df['is_amp'] = 0
 
 
-    exclude_cols = {'sample_id', 'host.id', 'known_tsi_years', 'viral_load', 'is_mrc'}
+    exclude_cols = {'sample_id', 'host.id', 'known_tsi_years', 'viral_load', 'is_amp'}
     blacklist = ['genome_', 'gp120_', 'gp41_']
 
     base_features = [
@@ -155,18 +155,18 @@ def main():
     if args.include_viral_load:
         include_flags.append('viral_load')
 
-    if args.include_is_mrc:
-        include_flags.append('is_mrc')
-        # Put is_mrc as first feature in base_features
-        if 'is_mrc' in base_features:
-            base_features.remove('is_mrc')
-        base_features = ['is_mrc'] + base_features
+    if args.include_is_amp:
+        include_flags.append('is_amp')
+        # Put is_amp as first feature in base_features
+        if 'is_amp' in base_features:
+            base_features.remove('is_amp')
+        base_features = ['is_amp'] + base_features
 
     results = evaluate_combos(df, base_features, include_flags=include_flags)
 
     label_parts = ['base']
-    if args.include_is_mrc:
-        label_parts.append('mrc')
+    if args.include_is_amp:
+        label_parts.append('amp')
     if args.include_viral_load:
         label_parts.append('vl')
     label = "_".join(label_parts)

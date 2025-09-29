@@ -27,7 +27,7 @@ def _impute_knn(X, k=3):
 
 def prepare_data(df, features_list, is_amplicons=False):
     seqtype = pd.DataFrame(index=df.index)
-    seqtype['is_mrc'] = int(is_amplicons)
+    seqtype['is_amp'] = int(is_amplicons)
     data_for_model = pd.concat((seqtype, df), axis=1)[features_list]
     scaler = StandardScaler()
     data_scaled = scaler.fit_transform(data_for_model)
@@ -249,7 +249,7 @@ if __name__ == "__main__":
     parser.add_argument("--report", required=True,
                         help="Folder name to save metrics CSV and performance plot.")
     parser.add_argument("--amplicons", action="store_true",
-                        help="Set is_mrc=1 (amplicons data). Default is False.")
+                        help="Set is_amp=1 (amplicons data). Default is False.")
     parser.add_argument("--modelname", default="IGS",
                         help="Model name used in saved file names (default: IGS).")
 
