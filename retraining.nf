@@ -66,9 +66,10 @@ def helpMSG() {
     ${c_yellow}Usage examples:${c_reset}
     nextflow retraining.nf \
                 --dataset inputs/tsi_seroconverter_beehive.xlsx \
-                --primers  -profile rki_slurm,rki_conda \
+                --primers inputs/primers_sk_validation.fasta
                 --modelname SK \
                 --oudir MyModel \
+                -profile rki_slurm,rki_conda \
                 -c retraining.config \ 
                 -resume
    
