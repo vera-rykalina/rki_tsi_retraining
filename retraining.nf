@@ -396,8 +396,8 @@ process FEATURE_SELECTION_REPORTS_BASE_AMP {
     path retraining_df
 
   output:
-    path "report_base_mrc/top10_base_amp.csv"
-    path "report_base_mrc/best_features_base_amp.txt", emit: Txt
+    path "report_base_amp/top10_base_amp.csv"
+    path "report_base_amp/best_features_base_amp.txt", emit: Txt
 
 
     
