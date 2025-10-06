@@ -1,0 +1,28 @@
+/opt/miniconda/lib/python3.12/site-packages/conda/base/context.py:198: FutureWarning: Adding 'defaults' to channel list implicitly is deprecated and will be removed in 25.9. 
+
+To remove this warning, please choose a default channel explicitly with conda's regular configuration system, e.g. by adding 'defaults' to the list of channels:
+
+  conda config --add channels defaults
+
+For more information see https://docs.conda.io/projects/conda/en/stable/user-guide/configuration/use-condarc.html
+
+  deprecated.topic(
+INFO:root:Loading data from retraining_df.csv
+INFO:root:Loading feature list from best_features_base_amp.txt
+INFO:root:No missing data to impute, continuing.
+INFO:root:Outer CV fold 1 starting...
+INFO:root:Fold 1 results: MAE=0.7990, RMSE=1.0782, R2=0.5207
+INFO:root:Outer CV fold 2 starting...
+INFO:root:Fold 2 results: MAE=0.7067, RMSE=0.9213, R2=0.6943
+INFO:root:Outer CV fold 3 starting...
+INFO:root:Fold 3 results: MAE=0.5583, RMSE=0.8428, R2=0.7889
+INFO:root:Outer CV fold 4 starting...
+INFO:root:Fold 4 results: MAE=0.6122, RMSE=0.8320, R2=0.7122
+INFO:root:Outer CV fold 5 starting...
+INFO:root:Fold 5 results: MAE=1.0037, RMSE=1.4303, R2=0.2747
+INFO:root:Nested CV results: MAE=0.7359±0.1571, RMSE=1.0209±0.2228, R2=0.5982±0.1840
+INFO:root:Best hyperparameters from aggregated CV: {'max_depth': 5, 'min_samples_leaf': 1, 'min_samples_split': 2, 'n_estimators': 100}
+INFO:root:Retrained metrics saved to reports/retrained_metrics.csv
+INFO:root:Metrics saved to reports/metrics.csv
+INFO:root:Performance plot saved to reports/performance_plot.png
+INFO:root:Model components saved in model_SK
