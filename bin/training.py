@@ -177,7 +177,7 @@ def train_model(input_file, features_file, output_folder, report_folder,
     full_report_df = pd.concat([summary_metrics, preds_df], ignore_index=True)
     full_report_df.to_csv(metrics_path, index=False)
 
-    # --- Begin addition: retrained metrics CSV ---
+ 
     retrained_metrics_path = os.path.join(report_folder, "retrained_metrics.csv")
 
     all_tree_preds_full = np.array([tree.predict(data_for_model_imp) for tree in final_rf.estimators_])
@@ -218,7 +218,7 @@ def train_model(input_file, features_file, output_folder, report_folder,
     retrain_report_df = pd.concat([retrain_summary_metrics, retrain_preds_df], ignore_index=True)
     retrain_report_df.to_csv(retrained_metrics_path, index=False)
     loginfo(f"Retrained metrics saved to {retrained_metrics_path}")
-    # --- End addition ---
+
 
     # Original plot (full retrained model)
     plt.figure(figsize=(8, 6))
