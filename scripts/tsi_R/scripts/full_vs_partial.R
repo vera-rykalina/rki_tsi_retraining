@@ -1,0 +1,56 @@
+# Install required packages if needed
+install.packages(c("readxl", "dplyr", "flextable", "officer"))
+
+# Load libraries
+library(readxl)
+library(dplyr)
+library(flextable)
+library(officer)
+
+# Step 1: Read your Excel file (replace 'your_file.xlsx' with your actual filename)
+data <- read_excel("data/full_vs_sk.xlsx")
+
+# Step 2: Convert comma decimals to numeric
+data <- data %>%
+  mutate(
+    `Known TSI (months)` = as.numeric(gsub(",", ".", `Known TSI (months)`)),
+    `Full (HIV-phyloTSI)` = as.numeric(gsub(",", ".", `Full (HIV-phyloTSI)`)),
+    `Partial (SK)` = as.numeric(gsub(",", ".", `Partial (SK)`))
+  )
+
+# Step 3: Classification function
+classify <- function(x) ifelse(x <= 12, "Recent", "Long-term")
+
+# Step 4: Add classifications and comparison color logic
+data <- data %>%
+  mutate(
+    known_class = classify(`Known TSI (months)`),
+    full_class = classify(`Full (HIV-phyloTSI)`),
+    partial_class = classify(`Partial (SK)`),
+    
+    full_color = ifelse(full_class == known_class, "blue", "red"),
+    partial_color = ifelse(partial_class == known_class, "blue", "red")
+  )
+
+ft <- flextable(data[, c("ID", "Known TSI (months)", "Full (HIV-phyloTSI)", "Partial (SK)")]) %>%
+  autofit() %>%
+  theme_box() %>%
+  bold(part = "header") %>%
+  fontsize(part = "all", size = 12) %>%
+  align(align = "center", part = "all")
+
+# Apply colors row-wise
+for (row_idx in seq_len(nrow(data))) {
+  ft <- color(ft, i = row_idx, j = "Full (HIV-phyloTSI)", color = data$full_color[row_idx])
+  ft <- color(ft, i = row_idx, j = "Partial (SK)", color = data$partial_color[row_idx])
+}
+
+
+# Step 6: Export to PowerPoint
+ppt <- read_pptx()
+ppt <- add_slide(ppt, layout = "Title and Content", master = "Office Theme")
+ppt <- ph_with(ppt, ft, location = ph_location_type(type = "body"))
+
+# Save the PowerPoint file
+print(ppt, target = "outputs/TSI_Comparison_Table.pptx")
+
