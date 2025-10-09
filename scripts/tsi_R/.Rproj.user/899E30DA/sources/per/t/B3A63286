@@ -1,0 +1,27 @@
+{
+    "id": "B3A63286",
+    "path": "C:/Users/rykalinav/Desktop/tsi_R/scripts/genome_regions_covered.R",
+    "project_path": "scripts/genome_regions_covered.R",
+    "type": "r_source",
+    "hash": "2078251505",
+    "contents": "",
+    "dirty": false,
+    "created": 1757057964665.0,
+    "source_on_save": false,
+    "relative_order": 4,
+    "properties": {
+        "tempName": "Untitled1",
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "9,18",
+        "scrollLine": "0"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1757404168,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1757404168673,
+    "read_only": false,
+    "read_only_alternatives": []
+}
