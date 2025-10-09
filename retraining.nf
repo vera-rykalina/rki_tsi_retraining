@@ -496,8 +496,8 @@ workflow {
   ch_all_features_means = CALCULATE_MEANS ( params.refdata_tsi_hxb2, ch_maf_pos_masked, ch_patstats_pos_masked )
   ch_retraining_df = GET_RETRAINING_DF ( ch_samples.Csv, ch_all_features_means )
   ch_base_amp = FEATURE_SELECTION_REPORTS_BASE_AMP (ch_retraining_df )
-  ch_base_vl = FEATURE_SELECTION_REPORTS_BASE_VL (ch_retraining_df )
-  ch_base = FEATURE_SELECTION_REPORTS_BASE ( ch_retraining_df )
+  //ch_base_vl = FEATURE_SELECTION_REPORTS_BASE_VL (ch_retraining_df )
+  //ch_base = FEATURE_SELECTION_REPORTS_BASE ( ch_retraining_df )
   ch_model = TRAINING ( ch_masking_regions, ch_refdata, ch_retraining_df, ch_base_amp.Txt, params.modelname )
 }
 
