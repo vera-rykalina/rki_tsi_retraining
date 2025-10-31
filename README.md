@@ -32,10 +32,10 @@ conda env create -n nextflow -f env/nextflow.yml
 All other software tools with their dependencies get installed automatically within the pipeline via conda directives. 
 
 
-## Prerequisite
+## Prerequisites
 The pipeline retrieves the data from the project folder outside of the HPC environment. As this process is automated, the .keytab file should be created.
 
-### 1. Check if keytab already exists
+- 1. Check if keytab already exists
 
 ```bash
 cd  
@@ -45,9 +45,8 @@ ls -al
 Look for a folder called `.keytab`.  
 If not present, proceed to create it.
 
----
 
-### 2. Create Keytab (Login Node)
+- 2. Create Keytab (Login Node)
 
 ```bash
 hpc-keytab
@@ -61,9 +60,8 @@ Please be sure to read: https://confluence.rki.local/x/Xa3ZB
 continue with creation? [y/N] y
 ```
 
----
 
-### 3. Test Keytab Setup
+- 3. Test Keytab Setup
 
 #### Remove existing tickets:<p>
 
@@ -71,7 +69,7 @@ continue with creation? [y/N] y
 kdestroy
 ```
 
-#### Create new one:
+- 4. create new one:
 
 ```bash
 hpc-ticket
