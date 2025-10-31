@@ -55,7 +55,7 @@ MOUNTED_DIR="$TMPDIR/projekte/$SEARCH_DIR"
 # Prepare output directory (no extra subfolder)
 mkdir -p "$OUTPUT_DIR"
 
-# Optional: copy all *_maf.csv files to a temp folder to speed searching
+# Copy all *_maf.csv files to a temp folder to speed searching
 TMP_ALL="$TMPDIR/all_csv"
 mkdir -p "$TMP_ALL"
 find "$MOUNTED_DIR" -name "*_patStats.csv" -exec cp {} "$TMP_ALL" \;
