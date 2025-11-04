@@ -1,0 +1,16 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: 'TSI Model Generator Pipeline '
+message: >-
+  A pipeline to generate TSI models for partial HIV-1
+  genomes.
+type: software
+authors:
+  - given-names: Vera
+    family-names: Rykalina
+repository-code: 'https://github.com/vera-rykalina/rki_tsi_retraining.git'
+keywords:
+  - 'HIVtime, TSI, HIV-1, Random Forest'
+license: GPL-3.0
